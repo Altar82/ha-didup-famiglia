@@ -1,0 +1,14 @@
+{
+  "domain": "didup_famiglia",
+  "name": "DidUP Famiglia (Argo)",
+  "codeowners": [
+    "@Altar82"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/Altar82/ha-didup-famiglia",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Altar82/ha-didup-famiglia/issues",
+  "requirements": [],
+  "version": "0.2.0"
+}

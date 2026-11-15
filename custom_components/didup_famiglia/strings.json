@@ -1,0 +1,93 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "DidUP Famiglia (Argo)",
+        "description": "Come accedi al registro elettronico?",
+        "menu_options": {
+          "credentials": "Codice scuola, utente e password Argo",
+          "spid": "SPID o CIE"
+        }
+      },
+      "credentials": {
+        "title": "Accesso con credenziali Argo",
+        "description": "Inserisci le credenziali Argo del genitore.",
+        "data": {
+          "school_code": "Codice scuola",
+          "username": "Nome utente",
+          "password": "Password"
+        },
+        "data_description": {
+          "school_code": "Es. SC12345 oppure SG12345"
+        }
+      },
+      "spid": {
+        "title": "Accesso con SPID o CIE",
+        "description": "L'accesso SPID/CIE si fa nel browser, una sola volta: poi Home Assistant rinnova l'accesso da solo.\n\nUsa il browser di un **computer** (Chrome o Edge). Non farlo dal telefono se hai l'app didUP installata, altrimenti l'app prende il codice al posto di Home Assistant.\n\n1. Premi **F12** e apri la scheda **Console**, poi lascia gli strumenti aperti.\n2. Apri questo link: [Accedi ad Argo]({url})\n3. Inserisci il codice scuola, premi **SPID - CIE - EIDAS** e completa l'accesso.\n4. Alla fine la pagina sembra non fare nulla: nella Console compare un errore *Failed to launch 'it.argosoft.didup.famiglia.new://login-callback?code=...'*. Copia l'indirizzo tra apici, da `it.argosoft` fino alla fine, e incollalo qui sotto entro un paio di minuti.",
+        "data": {
+          "callback_url": "Indirizzo di ritorno"
+        },
+        "data_description": {
+          "callback_url": "Inizia con it.argosoft.didup.famiglia.new://login-callback?code="
+        }
+      },
+      "reauth_confirm": {
+        "title": "Nuovo accesso ad Argo",
+        "description": "La password di {username} non è più valida. Inserisci quella nuova.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "reauth_spid": {
+        "title": "Nuovo accesso con SPID o CIE",
+        "description": "L'accesso salvato è scaduto e serve rifare il login SPID/CIE.\n\nDal browser di un **computer**: premi **F12**, apri la scheda **Console**, poi apri [questo link]({url}), inserisci il codice scuola, premi **SPID - CIE - EIDAS** e completa l'accesso. Copia dalla Console l'indirizzo che inizia con `it.argosoft.didup.famiglia.new://login-callback?code=` e incollalo qui.",
+        "data": {
+          "callback_url": "Indirizzo di ritorno"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Credenziali non valide (o la scuola consente solo SPID/CIE).",
+      "invalid_callback": "Indirizzo non riconosciuto: deve iniziare con it.argosoft.didup.famiglia.new://login-callback?code=",
+      "code_expired": "Codice scaduto o già usato: riapri il link, rifai l'accesso e incolla subito il nuovo indirizzo.",
+      "no_refresh_token": "Argo non ha concesso l'accesso permanente: riprova.",
+      "cannot_connect": "Impossibile completare il login: Argo potrebbe aver cambiato il flusso di accesso. Controlla il log.",
+      "outdated_client": "Argo rifiuta la versione dell'app dichiarata. Aggiorna la versione nelle opzioni.",
+      "unknown": "Errore inatteso, controlla il log."
+    },
+    "abort": {
+      "already_configured": "Questo account è già configurato.",
+      "reauth_successful": "Accesso aggiornato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni DidUP Famiglia",
+        "data": {
+          "scan_interval": "Intervallo di aggiornamento (minuti)",
+          "client_version": "Versione app didUP Famiglia da dichiarare"
+        },
+        "data_description": {
+          "client_version": "Se Argo risponde 'versione non supportata', inserisci la versione attuale dell'app sul Play Store."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "media_generale": { "name": "Media generale" },
+      "ultimo_voto": { "name": "Ultimo voto" },
+      "numero_voti": { "name": "Numero voti" },
+      "compiti_domani": { "name": "Compiti per domani" },
+      "compiti_settimana": { "name": "Compiti prossimi 7 giorni" },
+      "assenze": { "name": "Assenze" },
+      "da_giustificare": { "name": "Da giustificare" },
+      "note_disciplinari": { "name": "Note disciplinari" },
+      "comunicazioni_da_leggere": { "name": "Comunicazioni da leggere" }
+    },
+    "calendar": {
+      "compiti": { "name": "Compiti" }
+    }
+  }
+}
