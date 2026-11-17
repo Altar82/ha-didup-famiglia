@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    name: Pacchetto per il Marketplace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Versione dal tag
+        run: |
+          versione="${GITHUB_REF_NAME#v}"
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$versione\"/" custom_components/didup_famiglia/manifest.json
+      - name: Crea lo zip
+        run: |
+          cd custom_components/didup_famiglia
+          zip -r ../../didup_famiglia.zip . -x '__pycache__/*'
+      - name: Allega lo zip alla release
+        run: gh release upload "$GITHUB_REF_NAME" didup_famiglia.zip --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

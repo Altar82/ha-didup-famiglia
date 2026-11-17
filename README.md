@@ -1,6 +1,6 @@
 # DidUP Famiglia per Home Assistant
 
-[![HACS](https://img.shields.io/badge/HACS-repository%20personalizzato-41BDF5.svg)](https://hacs.xyz/docs/faq/custom_repositories)
+[![Marketplace](https://img.shields.io/badge/Marketplace-default-41BDF5.svg)](https://github.com/hacs/default) [![Download](https://img.shields.io/github/downloads/Altar82/ha-didup-famiglia/total?label=download)](https://github.com/Altar82/ha-didup-famiglia/releases) [![Installazioni attive](https://img.shields.io/badge/dynamic/json?label=installazioni%20attive&query=%24.didup_famiglia.total&url=https%3A%2F%2Fanalytics.home-assistant.io%2Fcustom_integrations.json&color=41BDF5)](https://analytics.home-assistant.io/custom_integrations)
 
 Integrazione **non ufficiale** per [Home Assistant](https://www.home-assistant.io/) che porta in casa i dati del
 registro elettronico **Argo didUP Famiglia**: compiti, voti e medie, assenze e ritardi, note disciplinari e comunicazioni
