@@ -130,16 +130,22 @@ class FakeArgo:
             return _Resp(200, js={"access_token": "AT", "refresh_token": "RT", "expires_in": 3600}, url=url)
         return _Resp(404, url=url)
 
+    famiglia_down = False
+
     def request(self, method, url, headers=None, data=None, **kw):
         self.calls.append((method, url, headers))
         assert headers["Authorization"] == "Bearer AT"
+        nuova = url.startswith(api.FAMIGLIA_BASE)
+        if nuova and self.famiglia_down or not nuova and not self.famiglia_down:
+            return _Resp(503)  # una sola delle due API risponde
         if url.endswith("/login"):
             return _Resp(200, js={"success": True, "data": [{"token": "PT", "codMin": "SC1", "opzioni": []}]})
         if url.endswith("/profilo"):
+            alunno = {"nominativo": "ROSSI MARIO", **({"alunnoPK": "42"} if nuova else {"pk": "42"})}
             return _Resp(
                 200,
-                js={"success": True, "data": {"alunno": {"nominativo": "ROSSI MARIO", "pk": "42"},
-                    "scheda": {"classe": {"desDenominazione": "3", "desSezione": "B"}}}},
+                js={"success": True, "data": {"alunno": alunno, "anno": {"dataInizio": "2026-09-01"},
+                    "scheda": {"pk": "S1", "classe": {"desDenominazione": "3", "desSezione": "B"}}}},
             )
         if url.endswith("dashboard/dashboard"):
             assert headers["x-auth-token"] == "PT"
@@ -337,6 +343,7 @@ def test_presa_visione_scarica_allegato_e_conferma():
     c._access_token, c._expires_at = "AT", 9e18
     p = api.Profile(token="T", cod_min="SC1", student_id="sc1_1", scheda_pk="SK9")
     c.profiles = [p]
+    c._legacy = True  # profili dalla vecchia API: serve la sessione dell'API Famiglia
     asyncio.run(c.async_confirm_notice(p, "777", "ALL1"))
     paths = [x[0] for x in fake.calls]
     assert paths == ["login", "famiglia/downloadallegatobacheca", "famiglia/presavisione"]
@@ -346,6 +353,13 @@ def test_presa_visione_scarica_allegato_e_conferma():
     fake2 = FakeFamiglia()
     c2 = api.ArgoClient(fake2, "1.30.2", refresh_token="RT")
     c2._access_token, c2._expires_at, c2.profiles = "AT", 9e18, [p]
+    # con l'API Famiglia la sessione è già quella del profilo: nessun login aggiuntivo
+    fake3 = FakeFamiglia()
+    fake3.scaricato = True
+    c3 = api.ArgoClient(fake3, "1.30.2", refresh_token="RT")
+    c3._access_token, c3._expires_at, c3.profiles = "AT", 9e18, [p]
+    asyncio.run(c3.async_confirm_notice(p, "779", None))
+    assert [x[0] for x in fake3.calls] == ["famiglia/presavisione"] and fake3.calls[0][2]["x-auth-token"] == "T"
     try:
         asyncio.run(c2.async_confirm_notice(p, "778", None))
     except api.ArgoConnectionError as err:
@@ -370,3 +384,21 @@ def test_bacheca_id_allegati_e_promemoria():
     assert n.attachment_ids == ["A1"] and n.as_dict()["id"] == "9" and n.unread
     assert [r.text for r in d.reminders] == ["Interrogazione", "Verifica storia"]
     assert d.reminders[0].as_dict()["data"] == "2026-11-18"
+
+
+def test_api_famiglia_e_ripiego_su_quella_vecchia():
+    """Stesso alunno, stesso id delle entità, qualunque API risponda."""
+    ids = []
+    for giu in (False, True):
+        fake = FakeArgo()
+        fake.famiglia_down = giu
+        c = _client(fake)
+        asyncio.run(c.async_login())
+        dash = asyncio.run(c.async_get_dashboard(c.profiles[0]))
+        assert dash["mediaGenerale"] == 7.25
+        assert c._legacy is giu
+        ids.append(c.profiles[0].student_id)
+        api_calls = [x[1] for x in fake.calls if len(x) == 3 and x[0] == "POST" and "/api/" in str(x[1])]
+        base = api.API_BASE if giu else api.FAMIGLIA_BASE
+        assert api_calls[-1] == base + "dashboard/dashboard"
+    assert ids[0] == ids[1] == "SC1_42"

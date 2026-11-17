@@ -71,6 +71,7 @@ class Profile:
     school_name: str | None = None
     student_id: str | None = None
     scheda_pk: str | None = None
+    year_start: str | None = None
 
     @property
     def unique_id(self) -> str:
@@ -293,6 +294,7 @@ class ArgoClient:
         self.profiles: list[Profile] = []
         # sessioni dell'API Famiglia, per cod_min: lista di (token, cod_min) nell'ordine di Argo
         self._famiglia: list[dict[str, Any]] | None = None
+        self._legacy = False  # True se Argo risponde solo con la vecchia API /appfamiglia
 
     @property
     def uses_credentials(self) -> bool:
@@ -402,12 +404,27 @@ class ArgoClient:
             self._on_refresh_token(self._refresh_token)
 
     async def _app_login(self) -> None:
-        body = {
-            "lista-opzioni-notifiche": "{}",
-            "lista-x-auth-token": "[]",
-            "clientID": secrets.token_urlsafe(57),
-        }
-        data = await self._api("login", body=body, profile=None, _retry=False)
+        """Sessioni applicative (una per figlio).
+
+        Prima l'API Famiglia usata dall'app attuale; se non risponde si prova la vecchia API
+        /appfamiglia, che Argo sta dismettendo (da novembre 2026 risponde 503).
+        """
+        self._legacy = False
+        try:
+            data = await self._api("login", body={}, profile=None, _retry=False)
+        except ArgoConnectionError as err:
+            _LOGGER.debug("Login API Famiglia non riuscito (%s), provo l'API precedente", err)
+            self._legacy = True
+            body = {
+                "lista-opzioni-notifiche": "{}",
+                "lista-x-auth-token": "[]",
+                "clientID": secrets.token_urlsafe(57),
+            }
+            try:
+                data = await self._api("login", body=body, profile=None, _retry=False)
+            except ArgoConnectionError:
+                self._legacy = False
+                raise err from None
         items = data.get("data") or []
         if isinstance(items, dict):
             items = [items]
@@ -438,6 +455,8 @@ class ArgoClient:
         scheda = data.get("scheda") or {}
         classe = scheda.get("classe") or {}
         scuola = scheda.get("scuola") or {}
+        anno = data.get("anno") or {}
+        p.year_start = anno.get("dataInizio")
         p.name = (
             alunno.get("nominativo")
             or " ".join(x for x in (alunno.get("nome"), alunno.get("cognome")) if x)
@@ -445,9 +464,10 @@ class ArgoClient:
             or None
         )
         p.class_name = " ".join(x for x in (classe.get("desDenominazione"), classe.get("desSezione")) if x) or None
-        p.school_name = scuola.get("desDenominazione")
+        p.school_name = scuola.get("desDenominazione") or scuola.get("descrizione")
         p.scheda_pk = str(scheda["pk"]) if scheda.get("pk") else None
-        pk = alunno.get("pk") or scheda.get("pk")
+        # stesso identificativo con entrambe le API (alunnoPK nella nuova), così le entità non cambiano
+        pk = alunno.get("pk") or alunno.get("alunnoPK") or scheda.get("pk")
         p.student_id = f"{self.school_code or p.cod_min}_{pk}" if pk else None
 
     async def _exchange_code(self, code: str, verifier: str) -> None:
@@ -512,20 +532,24 @@ class ArgoClient:
         method: str = "POST",
         _retry: bool = True,
     ) -> dict[str, Any]:
+        legacy = self._legacy
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "argo-client-version": self.client_version,
+            "argo-client-version": self.client_version if legacy else FAMIGLIA_VERSION,
             "Authorization": f"Bearer {self._access_token}",
-            "User-Agent": USER_AGENT,
         }
+        if legacy:
+            headers["User-Agent"] = USER_AGENT
+        else:
+            headers["os-type"] = "WEB"
         if profile is not None:
             headers["x-auth-token"] = profile.token
             headers["x-cod-min"] = profile.cod_min
         try:
             async with self._session.request(
                 method,
-                API_BASE + path,
+                (API_BASE if legacy else FAMIGLIA_BASE) + path,
                 headers=headers,
                 data=json.dumps(body) if body is not None else None,
                 timeout=TIMEOUT,
@@ -552,16 +576,19 @@ class ArgoClient:
         except aiohttp.ClientError as err:
             raise ArgoConnectionError(str(err)) from err
         if isinstance(data, dict) and data.get("success") is False:
-            raise ArgoConnectionError(f"{path}: {data.get('msg') or 'errore'}")
+            raise ArgoConnectionError(f"{path}: {data.get('msg') or data.get('message') or 'errore'}")
         return data if isinstance(data, dict) else {"data": data}
 
     async def async_get_dashboard(self, profile: Profile) -> dict[str, Any]:
         """Scarica la dashboard completa di un profilo."""
         await self._ensure_token()
         profile = next((p for p in self.profiles if p.unique_id == profile.unique_id), profile)
+        since = "2000-01-01 00:00:00.000"
+        if not self._legacy and profile.year_start:
+            # l'API Famiglia vuole l'inizio dell'anno scolastico (dati completi dell'anno)
+            since = f"{str(profile.year_start)[:10]} 00:00:00.000"
         body = {
-            # data molto vecchia = dati completi, non solo le differenze
-            "dataultimoaggiornamento": "2000-01-01 00:00:00.000000",
+            "dataultimoaggiornamento": since,
             "opzioni": json.dumps(profile.options),
         }
         data = await self._api("dashboard/dashboard", profile=profile, body=body)
@@ -605,6 +632,9 @@ class ArgoClient:
 
     async def _famiglia_session(self, profile: Profile) -> dict[str, Any]:
         await self._ensure_token()
+        if not self._legacy and profile.token:
+            # i profili vengono già dall'API Famiglia: la sessione è quella
+            return {"token": profile.token, "codMin": profile.cod_min}
         if self._famiglia is None:
             data = await self._famiglia_api("login", {})
             items = data.get("data") or []

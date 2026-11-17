@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.2
+
+### Correzioni
+- **Argo ha spento la vecchia API dell'app** (`/appfamiglia`, risponde *HTTP 503*): l'integrazione ora usa la nuova
+  API Famiglia, la stessa dell'app attuale. Se un giorno la nuova non rispondesse, prova ancora quella vecchia.
+  Non serve rifare l'accesso e le entità restano le stesse.
+
 ## 0.3.1
 
 ### Novità
