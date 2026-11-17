@@ -84,6 +84,7 @@
       "assenze": { "name": "Assenze" },
       "da_giustificare": { "name": "Da giustificare" },
       "note_disciplinari": { "name": "Note disciplinari" },
+      "ultima_comunicazione": { "name": "Ultima comunicazione" },
       "comunicazioni_da_leggere": { "name": "Comunicazioni da leggere" }
     },
     "calendar": {

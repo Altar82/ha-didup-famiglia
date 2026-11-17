@@ -37,6 +37,11 @@ def _last_grade(st: Student):
     return next((g for g in st.data.grades if g.value is not None), None)
 
 
+def _last_notice(st: Student):
+    """Ultima comunicazione pubblicata in bacheca (la più recente per data)."""
+    return st.data.notices[0] if st.data.notices else None
+
+
 @dataclass(frozen=True, kw_only=True)
 class DidupSensorDescription(SensorEntityDescription):
     value_fn: Callable[[Student], Any]
@@ -104,6 +109,12 @@ SENSORS: tuple[DidupSensorDescription, ...] = (
         state_class=SensorStateClass.TOTAL,
         value_fn=lambda st: len(st.data.notes),
         attrs_fn=lambda st: {"ultime_note": [n.as_dict() for n in st.data.notes[:MAX_ATTR_ITEMS]]},
+    ),
+    DidupSensorDescription(
+        key="ultima_comunicazione",
+        icon="mdi:bullhorn",
+        value_fn=lambda st: (n.title[:255] or None) if (n := _last_notice(st)) else None,
+        attrs_fn=lambda st: n.as_dict() if (n := _last_notice(st)) else {},
     ),
     DidupSensorDescription(
         key="comunicazioni_da_leggere",

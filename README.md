@@ -87,6 +87,7 @@ Per ogni figlio viene creato un dispositivo con queste entità:
 | **Assenze** | numero di assenze | `ritardi`, `uscite_anticipate`, `ultimi_eventi` |
 | **Da giustificare** | numero | `eventi` |
 | **Note disciplinari** | numero | `ultime_note` |
+| **Ultima comunicazione** | titolo dell'ultima comunicazione pubblicata in bacheca | `data`, `categoria`, `autore`, `presa_visione_richiesta`, `presa_visione`, `allegati`, `url` |
 | **Comunicazioni da leggere** | circolari con presa visione mancante | `da_leggere`, `ultime_comunicazioni` |
 
 Le annotazioni senza valore che Argo registra tra i voti (*Impreparato*, *Comunicazione*…) non contano come voti:
