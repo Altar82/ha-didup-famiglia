@@ -8,11 +8,11 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import config_validation as cv, issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 
 from .const import ATTR_ENTRY_ID, ATTR_NOTICE_ID, DOMAIN, SERVICE_ACK
-from .coordinator import DidupCoordinator
+from .coordinator import DidupCoordinator, reauth_issue_id
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR, Platform.BUTTON, Platform.BINARY_SENSOR]
 
@@ -76,3 +76,7 @@ async def _async_reload(hass: HomeAssistant, entry: DidupConfigEntry) -> None:
 
 async def async_unload_entry(hass: HomeAssistant, entry: DidupConfigEntry) -> bool:
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: DidupConfigEntry) -> None:
+    ir.async_delete_issue(hass, DOMAIN, reauth_issue_id(entry.entry_id))

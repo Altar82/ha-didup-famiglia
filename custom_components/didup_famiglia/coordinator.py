@@ -13,6 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -20,6 +21,8 @@ from homeassistant.util import dt as dt_util
 
 from .api import ArgoAuthError, ArgoClient, ArgoError, ArgoOutdatedClientError, Profile
 from .const import (
+    AUTH_SPID,
+    CONF_AUTH_METHOD,
     CONF_CLIENT_VERSION,
     CONF_REFRESH_TOKEN,
     CONF_SCAN_INTERVAL,
@@ -49,6 +52,10 @@ class Student:
     @property
     def name(self) -> str:
         return self.profile.name or f"Alunno {self.profile.unique_id[-4:]}"
+
+
+def reauth_issue_id(entry_id: str) -> str:
+    return f"reauth_{entry_id}"
 
 
 def make_client(
@@ -109,6 +116,7 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
                 result[profile.unique_id] = Student(profile, parse_dashboard(raw), raw)
         except ArgoAuthError as err:
             self.last_error = f"Accesso rifiutato: {err}"
+            self._issue_reauth()
             raise ConfigEntryAuthFailed(str(err)) from err
         except ArgoOutdatedClientError as err:
             self.last_error = str(err)
@@ -119,8 +127,25 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
 
         self.last_success = dt_util.utcnow()
         self.last_error = None
+        ir.async_delete_issue(self.hass, DOMAIN, reauth_issue_id(self.config_entry.entry_id))
         await self._fire_new_items(result)
         return result
+
+    def _issue_reauth(self) -> None:
+        """Avviso in Riparazioni: Argo chiede un nuovo accesso (password cambiata o accesso SPID/CIE scaduto)."""
+        entry = self.config_entry
+        spid = entry.data.get(CONF_AUTH_METHOD) == AUTH_SPID
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            reauth_issue_id(entry.entry_id),
+            is_fixable=True,
+            is_persistent=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="accesso_spid_scaduto" if spid else "accesso_non_valido",
+            translation_placeholders={"account": entry.title},
+            data={"entry_id": entry.entry_id},
+        )
 
     async def async_confirm_notices(self, uid: str | None = None, notice_id: str | None = None) -> int:
         """Presa visione: di una comunicazione (notice_id) o di tutte quelle in attesa.

@@ -296,8 +296,8 @@ automation:
 
 #### Argo non raggiungibile o accesso da rifare
 
-Se la password cambia o il token SPID scade, Home Assistant mostra da solo la richiesta di un nuovo accesso
-(**Impostazioni → Dispositivi e servizi**). Questa automazione avvisa se Argo non risponde da 3 ore:
+Se la password cambia o l'accesso SPID/CIE scade, compare un avviso in **Impostazioni → Riparazioni**:
+aprilo e segui il nuovo accesso. L'avviso sparisce da solo appena Argo accetta di nuovo l'accesso. Questa automazione avvisa se Argo non risponde da 3 ore:
 
 ```yaml
 automation:

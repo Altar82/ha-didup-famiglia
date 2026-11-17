@@ -144,5 +144,29 @@
         }
       }
     }
+  },
+  "issues": {
+    "accesso_non_valido": {
+      "title": "didUP Famiglia: serve un nuovo accesso ({account})",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Nuovo accesso ad Argo",
+            "description": "Argo ha rifiutato utente e password di **{account}**: di solito succede quando la password è stata cambiata o è scaduta. Premi **Invia** e poi completa il nuovo accesso che compare in **Impostazioni → Dispositivi e servizi → didUP Famiglia**. Finché non lo fai voti, compiti e comunicazioni non si aggiornano. Ti verrà chiesta la nuova password."
+          }
+        }
+      }
+    },
+    "accesso_spid_scaduto": {
+      "title": "didUP Famiglia: accesso SPID/CIE scaduto ({account})",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Nuovo accesso ad Argo",
+            "description": "L'accesso con SPID o CIE di **{account}** è scaduto e Argo chiede di rifarlo dal browser. Premi **Invia** e poi completa il nuovo accesso che compare in **Impostazioni → Dispositivi e servizi → didUP Famiglia**. Finché non lo fai voti, compiti e comunicazioni non si aggiornano."
+          }
+        }
+      }
+    }
   }
 }

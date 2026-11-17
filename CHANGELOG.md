@@ -12,6 +12,8 @@
   `didup_famiglia_nuovo_promemoria`.
 - **Collegamento Argo**: sensore di diagnostica che resta disponibile anche quando Argo non risponde, con l'ora
   dell'ultimo aggiornamento riuscito e l'errore.
+- **Riparazioni**: quando Argo rifiuta l'accesso (password cambiata o accesso SPID/CIE scaduto) compare un avviso
+  in *Impostazioni → Riparazioni* che porta direttamente al nuovo accesso; sparisce da solo appena l'accesso torna valido.
 - Le comunicazioni hanno ora l'attributo `id`, anche negli eventi.
 - README: esempi di automazioni per notifiche con pulsante di presa visione, medie, verifiche di domani e Argo
   non raggiungibile.
