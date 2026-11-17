@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4
+
+### Correzioni
+- Tolto un avviso nel registro sull'uso di una funzione del registro dispositivi che Home Assistant dismetterà.
+
 ## 0.3.3
 
 ### Correzioni

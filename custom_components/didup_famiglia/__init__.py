@@ -99,7 +99,14 @@ def _migra_identificativi(hass: HomeAssistant, entry: DidupConfigEntry, coordina
         if nuovo is None:
             continue
         # un dispositivo già creato con l'id nuovo (prima della migrazione) è un doppione: via
-        doppio = dev_reg.async_get_device(identifiers={(DOMAIN, nuovo)})
+        doppio = next(
+            (
+                d
+                for d in dr.async_entries_for_config_entry(dev_reg, entry.entry_id)
+                if (DOMAIN, nuovo) in d.identifiers
+            ),
+            None,
+        )
         if doppio is not None and doppio.id != device.id:
             for e in er.async_entries_for_device(ent_reg, doppio.id, include_disabled_entities=True):
                 ent_reg.async_remove(e.entity_id)
