@@ -5,17 +5,18 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import aiohttp
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .api import ArgoAuthError, ArgoClient, ArgoError, ArgoOutdatedClientError, Profile
 from .const import (
@@ -31,6 +32,7 @@ from .const import (
     EVENT_NEW_HOMEWORK,
     EVENT_NEW_NOTE,
     EVENT_NEW_NOTICE,
+    EVENT_NEW_REMINDER,
     STORAGE_VERSION,
 )
 from .parse import StudentData, parse_dashboard
@@ -87,6 +89,8 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}.seen"
         )
         self._seen: dict[str, dict[str, list[str]]] | None = None
+        self.last_success: datetime | None = None
+        self.last_error: str | None = None
 
     def _save_refresh_token(self, token: str) -> None:
         """SPID/CIE: Argo ruota il refresh token, va salvato a ogni rinnovo."""
@@ -104,14 +108,50 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
                 raw = await self.client.async_get_dashboard(profile)
                 result[profile.unique_id] = Student(profile, parse_dashboard(raw), raw)
         except ArgoAuthError as err:
+            self.last_error = f"Accesso rifiutato: {err}"
             raise ConfigEntryAuthFailed(str(err)) from err
         except ArgoOutdatedClientError as err:
+            self.last_error = str(err)
             raise UpdateFailed(str(err)) from err
         except ArgoError as err:
+            self.last_error = str(err)
             raise UpdateFailed(f"Errore comunicando con Argo: {err}") from err
 
+        self.last_success = dt_util.utcnow()
+        self.last_error = None
         await self._fire_new_items(result)
         return result
+
+    async def async_confirm_notices(self, uid: str | None = None, notice_id: str | None = None) -> int:
+        """Presa visione: di una comunicazione (notice_id) o di tutte quelle in attesa.
+
+        Ritorna quante comunicazioni sono state confermate.
+        """
+        done = 0
+        errors: list[str] = []
+        for st_uid, st in (self.data or {}).items():
+            if uid is not None and st_uid != uid:
+                continue
+            for n in st.data.notices:
+                if notice_id is not None:
+                    if n.pk != str(notice_id):
+                        continue
+                elif not n.unread:
+                    continue
+                try:
+                    await self.client.async_confirm_notice(
+                        st.profile, n.pk, n.attachment_ids[0] if n.attachment_ids else None
+                    )
+                    done += 1
+                except ArgoError as err:
+                    errors.append(f"{n.title[:60]}: {err}")
+        if notice_id is not None and not done and not errors:
+            raise HomeAssistantError(f"Comunicazione {notice_id} non trovata")
+        if done:
+            await self.async_request_refresh()
+        if errors:
+            raise HomeAssistantError("Presa visione non riuscita per " + "; ".join(errors))
+        return done
 
     async def _fire_new_items(self, students: dict[str, Student]) -> None:
         first_run = False
@@ -130,18 +170,20 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
                 EVENT_NEW_ABSENCE: [(a.pk, a.as_dict()) for a in st.data.absences],
                 EVENT_NEW_NOTICE: [(n.pk, n.as_dict()) for n in st.data.notices],
                 EVENT_NEW_HOMEWORK: [(h.pk, h.as_dict()) for h in st.data.homework],
+                EVENT_NEW_REMINDER: [(r.pk, r.as_dict()) for r in st.data.reminders],
             }
             for event, items in groups.items():
                 known = set(seen.get(event, []))
                 current = [pk for pk, _ in items]
-                if not (first_run or new_student):
+                # gruppo appena aggiunto (aggiornamento dell'integrazione): niente raffica di eventi
+                if not (first_run or new_student or event not in seen):
                     for pk, payload in items:
                         if pk not in known:
                             self.hass.bus.async_fire(
                                 event,
                                 {"alunno": st.name, "entry_id": self.config_entry.entry_id, **payload},
                             )
-                if set(current) - known:
+                if set(current) - known or event not in seen:
                     # teniamo anche i vecchi pk per non rinotificare elementi che spariscono e ricompaiono
                     seen[event] = list(dict.fromkeys([*current, *seen.get(event, [])]))[:2000]
                     changed = True

@@ -1,0 +1,10 @@
+presa_visione:
+  fields:
+    comunicazione:
+      example: "123456"
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: didup_famiglia

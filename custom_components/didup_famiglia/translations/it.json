@@ -76,19 +76,73 @@
   },
   "entity": {
     "sensor": {
-      "media_generale": { "name": "Media generale" },
-      "ultimo_voto": { "name": "Ultimo voto" },
-      "numero_voti": { "name": "Numero voti" },
-      "compiti_domani": { "name": "Compiti per domani" },
-      "compiti_settimana": { "name": "Compiti prossimi 7 giorni" },
-      "assenze": { "name": "Assenze" },
-      "da_giustificare": { "name": "Da giustificare" },
-      "note_disciplinari": { "name": "Note disciplinari" },
-      "ultima_comunicazione": { "name": "Ultima comunicazione" },
-      "comunicazioni_da_leggere": { "name": "Comunicazioni da leggere" }
+      "media_generale": {
+        "name": "Media generale"
+      },
+      "ultimo_voto": {
+        "name": "Ultimo voto"
+      },
+      "numero_voti": {
+        "name": "Numero voti"
+      },
+      "compiti_domani": {
+        "name": "Compiti per domani"
+      },
+      "compiti_settimana": {
+        "name": "Compiti prossimi 7 giorni"
+      },
+      "assenze": {
+        "name": "Assenze"
+      },
+      "da_giustificare": {
+        "name": "Da giustificare"
+      },
+      "note_disciplinari": {
+        "name": "Note disciplinari"
+      },
+      "ultima_comunicazione": {
+        "name": "Ultima comunicazione"
+      },
+      "comunicazioni_da_leggere": {
+        "name": "Comunicazioni da leggere"
+      },
+      "promemoria_settimana": {
+        "name": "Promemoria prossimi 7 giorni"
+      },
+      "media_materia": {
+        "name": "Media {materia}"
+      }
     },
     "calendar": {
-      "compiti": { "name": "Compiti" }
+      "compiti": {
+        "name": "Compiti"
+      }
+    },
+    "button": {
+      "presa_visione": {
+        "name": "Presa visione comunicazioni"
+      }
+    },
+    "binary_sensor": {
+      "collegamento_argo": {
+        "name": "Collegamento Argo"
+      }
+    }
+  },
+  "services": {
+    "presa_visione": {
+      "name": "Presa visione",
+      "description": "Conferma la presa visione di una comunicazione della bacheca, o di tutte quelle che la richiedono.",
+      "fields": {
+        "comunicazione": {
+          "name": "Comunicazione",
+          "description": "L'id della comunicazione (attributo id del sensore Ultima comunicazione o dell'evento). Se vuoto, si confermano tutte quelle in attesa."
+        },
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Limita all'account indicato (se ne hai più di uno)."
+        }
+      }
     }
   }
 }

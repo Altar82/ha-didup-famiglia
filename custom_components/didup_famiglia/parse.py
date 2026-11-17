@@ -215,6 +215,13 @@ class Reminder:
     text: str
     teacher: str | None
 
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "data": self.date.isoformat() if self.date else None,
+            "promemoria": self.text,
+            "docente": self.teacher,
+        }
+
 
 def parse_reminders(dash: dict[str, Any]) -> list[Reminder]:
     out = []
@@ -222,6 +229,7 @@ def parse_reminders(dash: dict[str, Any]) -> list[Reminder]:
         text = str(_first(i, "desAnnotazioni", "annotazioni", "descrizione", default="")).strip()
         if text:
             out.append(Reminder(str(_first(i, "pk", default=id(i))), _date(_first(i, "datGiorno", "data")), text, _teacher(i)))
+    out.sort(key=lambda r: r.date or date.max)
     return out
 
 
@@ -323,6 +331,7 @@ class Notice:
     needs_ack: bool
     acked: bool
     attachments: list[str] = field(default_factory=list)
+    attachment_ids: list[str] = field(default_factory=list)
 
     @property
     def unread(self) -> bool:
@@ -330,6 +339,7 @@ class Notice:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "id": self.pk,
             "data": self.date.isoformat() if self.date else None,
             "titolo": self.title,
             "categoria": self.category,
@@ -344,12 +354,14 @@ class Notice:
 def parse_notices(dash: dict[str, Any]) -> list[Notice]:
     out = []
     for i in _items(dash, "bacheca"):
-        att = []
+        att, att_ids = [], []
         for a in i.get("listaAllegati") or []:
             if isinstance(a, dict):
-                name = _first(a, "nomeFile", "desFile", "descrizione")
+                name = _first(a, "nomeFile", "desFile", "descrizione", "descrizioneFile")
                 if name:
                     att.append(str(name))
+                if a.get("pk"):
+                    att_ids.append(str(a["pk"]))
         acked = _truthy(_first(i, "isPresaVisione", "presaVisione", default=False)) or bool(
             i.get("dataConfermaPresaVisione")
         )
@@ -364,6 +376,7 @@ def parse_notices(dash: dict[str, Any]) -> list[Notice]:
                 needs_ack=_truthy(_first(i, "pvRichiesta", default=False)),
                 acked=acked,
                 attachments=att,
+                attachment_ids=att_ids,
             )
         )
     out.sort(key=lambda n: n.date or date.min, reverse=True)

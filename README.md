@@ -16,8 +16,9 @@ della bacheca. Funziona con più figli sullo stesso account.
 
 - **Due modi di accesso**: codice scuola + utente + password Argo, oppure **SPID / CIE**
 - **Calendario** dei compiti per data di consegna, con i promemoria della scuola
-- **Sensori** per voti, medie, compiti, assenze, note e comunicazioni
-- **Eventi** per le automazioni quando arriva un voto, una nota, un'assenza, una comunicazione o un compito nuovo
+- **Sensori** per voti, medie (anche per materia), compiti, promemoria, assenze, note e comunicazioni
+- **Presa visione** delle circolari da Home Assistant, con un pulsante o dall'azione di una notifica
+- **Eventi** per le automazioni quando arriva un voto, una nota, un'assenza, una comunicazione, un compito o un promemoria
 - Un **dispositivo per ogni figlio**, con nome, classe e scuola
 - **Diagnostica** scaricabile con i dati personali oscurati
 
@@ -80,18 +81,37 @@ Per ogni figlio viene creato un dispositivo con queste entità:
 |---|---|---|
 | Calendario **Compiti** | acceso se c'è un evento oggi | compiti per data di consegna e promemoria |
 | **Media generale** | media calcolata da Argo | `medie_materie` |
+| **Media *materia*** | una per materia, es. *Media Matematica* (si aggiungono da sole) | `numero_voti`, `ultimi_voti` |
 | **Ultimo voto** | es. `7½` | materia, data, tipo, docente, `ultimi_voti`, `annotazioni` |
 | **Numero voti** | voti con valore numerico | |
 | **Compiti per domani** | numero | `compiti` |
 | **Compiti prossimi 7 giorni** | numero | `compiti` |
+| **Promemoria prossimi 7 giorni** | verifiche, interrogazioni e avvisi segnati dai docenti | `promemoria` |
 | **Assenze** | numero di assenze | `ritardi`, `uscite_anticipate`, `ultimi_eventi` |
 | **Da giustificare** | numero | `eventi` |
 | **Note disciplinari** | numero | `ultime_note` |
-| **Ultima comunicazione** | titolo dell'ultima comunicazione pubblicata in bacheca | `data`, `categoria`, `autore`, `presa_visione_richiesta`, `presa_visione`, `allegati`, `url` |
+| **Ultima comunicazione** | titolo dell'ultima comunicazione pubblicata in bacheca | `id`, `data`, `categoria`, `autore`, `presa_visione_richiesta`, `presa_visione`, `allegati`, `url` |
 | **Comunicazioni da leggere** | circolari con presa visione mancante | `da_leggere`, `ultime_comunicazioni` |
+| Pulsante **Presa visione comunicazioni** | conferma tutte le circolari che chiedono la presa visione | |
+| **Collegamento Argo** (diagnostica) | acceso se l'ultimo aggiornamento è riuscito, resta disponibile anche quando Argo è giù | `ultimo_aggiornamento_riuscito`, `errore` |
 
 Le annotazioni senza valore che Argo registra tra i voti (*Impreparato*, *Comunicazione*…) non contano come voti:
 sono nell'attributo `annotazioni` del sensore *Ultimo voto*.
+
+## Presa visione
+
+Il pulsante **Presa visione comunicazioni** conferma in un colpo tutte le circolari che la richiedono.
+Per confermarne una sola c'è l'azione `didup_famiglia.presa_visione`, con l'`id` della comunicazione
+(lo trovi nell'evento `didup_famiglia_nuova_comunicazione` e negli attributi dei sensori della bacheca):
+
+```yaml
+action: didup_famiglia.presa_visione
+data:
+  comunicazione: "123456"   # senza id conferma tutte quelle in attesa
+```
+
+Come nell'app, Argo registra la presa visione dopo che è stato aperto un allegato: l'integrazione lo scarica
+da sola (senza salvarlo) prima di confermare. La conferma vale come quella fatta dall'app del genitore.
 
 ## Eventi per le automazioni
 
@@ -102,6 +122,7 @@ sono nell'attributo `annotazioni` del sensore *Ultimo voto*.
 | `didup_famiglia_nuova_assenza` | un'assenza, un ritardo o un'uscita |
 | `didup_famiglia_nuova_comunicazione` | una comunicazione in bacheca |
 | `didup_famiglia_nuovo_compito` | un compito assegnato |
+| `didup_famiglia_nuovo_promemoria` | un promemoria dei docenti (verifiche, interrogazioni…) |
 
 Ogni evento contiene `alunno` più i campi dell'elemento (`materia`, `voto`, `valore`, `data`, `titolo`, `compito`…).
 Al primo avvio non viene emesso nulla: gli elementi già presenti sono considerati visti.
@@ -141,7 +162,16 @@ automation:
             • {{ c.materia }}: {{ c.compito }}
             {% endfor %}
 
-  - alias: "Nuova circolare"
+```
+
+Sostituisci `notify.mobile_app_telefono` con il tuo servizio di notifica e `mario_rossi` con il nome
+dei tuoi sensori.
+
+#### Nuova comunicazione, con il pulsante "Presa visione" nella notifica
+
+```yaml
+automation:
+  - alias: "Nuova comunicazione in bacheca"
     triggers:
       - trigger: event
         event_type: didup_famiglia_nuova_comunicazione
@@ -149,15 +179,150 @@ automation:
       - action: notify.mobile_app_telefono
         data:
           title: "Bacheca: {{ trigger.event.data.alunno }}"
-          message: "{{ trigger.event.data.titolo }}"
+          message: >
+            {{ trigger.event.data.titolo }}
+            {% if trigger.event.data.autore %}({{ trigger.event.data.autore }}){% endif %}
+            {% if trigger.event.data.allegati %}
+            Allegati: {{ trigger.event.data.allegati | join(', ') }}{% endif %}
+          data:
+            url: "{{ trigger.event.data.url or '' }}"
+            actions: >
+              {% if trigger.event.data.presa_visione_richiesta %}
+              [{"action": "DIDUP_PV_{{ trigger.event.data.id }}", "title": "Presa visione"}]
+              {% else %}[]{% endif %}
+
+  - alias: "Presa visione dalla notifica"
+    triggers:
+      - trigger: event
+        event_type: mobile_app_notification_action
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.action.startswith('DIDUP_PV_') }}"
+    actions:
+      - action: didup_famiglia.presa_visione
+        data:
+          comunicazione: "{{ trigger.event.data.action.removeprefix('DIDUP_PV_') }}"
+```
+
+#### Promemoria della circolare non confermata la sera
+
+```yaml
+automation:
+  - alias: "Circolari da confermare"
+    triggers:
+      - trigger: time
+        at: "20:30:00"
+    conditions:
+      - condition: numeric_state
+        entity_id: sensor.mario_rossi_comunicazioni_da_leggere
+        above: 0
+    actions:
+      - action: notify.mobile_app_telefono
+        data:
+          title: "Circolari da confermare"
+          message: >
+            {% for n in state_attr('sensor.mario_rossi_comunicazioni_da_leggere', 'da_leggere') %}
+            • {{ n.titolo }}
+            {% endfor %}
+          data:
+            actions:
+              - action: DIDUP_PV_TUTTE
+                title: "Presa visione di tutte"
+
+  - alias: "Presa visione di tutte dalla notifica"
+    triggers:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: DIDUP_PV_TUTTE
+    actions:
+      - action: button.press
+        target:
+          entity_id: button.mario_rossi_presa_visione_comunicazioni
+```
+
+#### Media di una materia sotto il 6
+
+```yaml
+automation:
+  - alias: "Media matematica sotto la sufficienza"
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.mario_rossi_media_matematica
+        below: 6
+    actions:
+      - action: notify.mobile_app_telefono
+        data:
+          title: "Attenzione alla media"
+          message: >
+            Media di matematica scesa a {{ states('sensor.mario_rossi_media_matematica') }}
+            (ultimo voto: {{ state_attr('sensor.mario_rossi_media_matematica', 'ultimi_voti')[0].voto }})
+```
+
+#### Verifiche e interrogazioni di domani
+
+```yaml
+automation:
+  - alias: "Verifiche di domani"
+    triggers:
+      - trigger: time
+        at: "19:00:00"
+    variables:
+      domani: "{{ (now() + timedelta(days=1)).date() | string }}"
+      lista: >
+        {{ state_attr('sensor.mario_rossi_promemoria_prossimi_7_giorni', 'promemoria')
+           | selectattr('data', 'eq', domani) | list }}
+    conditions:
+      - condition: template
+        value_template: "{{ lista | count > 0 }}"
+    actions:
+      - action: notify.mobile_app_telefono
+        data:
+          title: "Domani a scuola"
+          message: >
+            {% for p in lista %}• {{ p.promemoria }}{% if p.docente %} ({{ p.docente }}){% endif %}
+            {% endfor %}
+
+  - alias: "Nuovo promemoria dei docenti"
+    triggers:
+      - trigger: event
+        event_type: didup_famiglia_nuovo_promemoria
+    actions:
+      - action: notify.mobile_app_telefono
+        data:
+          title: "Promemoria per {{ trigger.event.data.alunno }}"
+          message: "{{ trigger.event.data.data }}: {{ trigger.event.data.promemoria }}"
+```
+
+#### Argo non raggiungibile o accesso da rifare
+
+Se la password cambia o il token SPID scade, Home Assistant mostra da solo la richiesta di un nuovo accesso
+(**Impostazioni → Dispositivi e servizi**). Questa automazione avvisa se Argo non risponde da 3 ore:
+
+```yaml
+automation:
+  - alias: "didUP non si aggiorna"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.mario_rossi_collegamento_argo
+        to: "off"
+        for: "03:00:00"
+    actions:
+      - action: notify.mobile_app_telefono
+        data:
+          title: "didUP non si aggiorna"
+          message: >
+            Ultimo aggiornamento riuscito:
+            {{ as_timestamp(state_attr(trigger.entity_id, 'ultimo_aggiornamento_riuscito'), 0) | timestamp_custom('%d/%m %H:%M') }}.
+            Errore: {{ state_attr(trigger.entity_id, 'errore') }}
 ```
 
 ## Problemi
 
 - **"Impossibile completare il login"**: probabilmente Argo ha cambiato il flusso di accesso. Apri una issue allegando
   il log con il debug attivo (vedi sotto).
-- **Sensori vuoti o valori strani**: scarica la **diagnostica** dalla pagina dell'integrazione e allegala a una issue. Token, password e nomi vengono oscurati, ma dai comunque un'occhiata al file prima di pubblicarlo.
-  Nomi, codici fiscali, email e token sono oscurati, ma controllala comunque prima di pubblicarla.
+- **Sensori vuoti o valori strani**: scarica la **diagnostica** dalla pagina dell'integrazione e allegala a una issue.
+  Password, token, nomi, codici fiscali ed email sono oscurati, ma controllala comunque prima di pubblicarla.
 - **Log dettagliato**: dalla pagina dell'integrazione → **Abilita la registrazione di debug**, oppure:
 
   ```yaml

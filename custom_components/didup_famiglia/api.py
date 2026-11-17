@@ -30,6 +30,9 @@ AUTH_URL = "https://auth.portaleargo.it/oauth2/auth"
 TOKEN_URL = "https://auth.portaleargo.it/oauth2/token"
 SSO_LOGIN_URL = "https://www.portaleargo.it/auth/sso/login"
 API_BASE = "https://www.portaleargo.it/appfamiglia/api/rest/"
+# API "Famiglia" della web app: serve per le operazioni di scrittura (presa visione)
+FAMIGLIA_BASE = "https://didattica.portaleargo.it/famiglia/api/"
+FAMIGLIA_VERSION = "4.1.0"
 CLIENT_ID = "72fd6dea-d0ab-4bb9-8eaa-3ac24c84886c"
 REDIRECT_URI = "it.argosoft.didup.famiglia.new://login-callback"
 SCOPES = "openid offline profile user.roles argo"
@@ -67,6 +70,7 @@ class Profile:
     class_name: str | None = None
     school_name: str | None = None
     student_id: str | None = None
+    scheda_pk: str | None = None
 
     @property
     def unique_id(self) -> str:
@@ -287,6 +291,8 @@ class ArgoClient:
         self._on_refresh_token = on_refresh_token
         self._expires_at = 0.0
         self.profiles: list[Profile] = []
+        # sessioni dell'API Famiglia, per cod_min: lista di (token, cod_min) nell'ordine di Argo
+        self._famiglia: list[dict[str, Any]] | None = None
 
     @property
     def uses_credentials(self) -> bool:
@@ -299,6 +305,7 @@ class ArgoClient:
     async def async_close(self) -> None:
         """Dimentica i token. La sessione è di Home Assistant: la chiude lui."""
         self._access_token = None
+        self._famiglia = None
         self._session.cookie_jar.clear()
 
     # ------------------------------------------------------------- OAuth
@@ -439,6 +446,7 @@ class ArgoClient:
         )
         p.class_name = " ".join(x for x in (classe.get("desDenominazione"), classe.get("desSezione")) if x) or None
         p.school_name = scuola.get("desDenominazione")
+        p.scheda_pk = str(scheda["pk"]) if scheda.get("pk") else None
         pk = alunno.get("pk") or scheda.get("pk")
         p.student_id = f"{self.school_code or p.cod_min}_{pk}" if pk else None
 
@@ -563,3 +571,75 @@ class ArgoClient:
         if isinstance(payload, list):
             return payload[0] if payload else {}
         return payload if isinstance(payload, dict) else {}
+
+    # ------------------------------------------------------- API Famiglia
+    async def _famiglia_api(
+        self, path: str, body: dict[str, Any], session: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "argo-client-version": FAMIGLIA_VERSION,
+            "os-type": "WEB",
+            "Authorization": f"Bearer {self._access_token}",
+        }
+        if session is not None:
+            headers["x-auth-token"] = str(session.get("token", ""))
+            headers["x-cod-min"] = str(session.get("codMin", ""))
+        try:
+            async with self._session.post(
+                FAMIGLIA_BASE + path, headers=headers, data=json.dumps(body), timeout=TIMEOUT
+            ) as r:
+                if r.status in (401, 403):
+                    raise ArgoAuthError(f"{path}: HTTP {r.status}")
+                if r.status != 200:
+                    raise ArgoConnectionError(f"{path}: HTTP {r.status}")
+                data = await r.json(content_type=None)
+        except aiohttp.ClientError as err:
+            raise ArgoConnectionError(str(err)) from err
+        if not isinstance(data, dict):
+            raise ArgoConnectionError(f"{path}: risposta inattesa")
+        if data.get("success") is False:
+            raise ArgoConnectionError(f"{path}: {data.get('message') or data.get('msg') or 'errore'}")
+        return data
+
+    async def _famiglia_session(self, profile: Profile) -> dict[str, Any]:
+        await self._ensure_token()
+        if self._famiglia is None:
+            data = await self._famiglia_api("login", {})
+            items = data.get("data") or []
+            self._famiglia = [i for i in (items if isinstance(items, list) else [items]) if isinstance(i, dict)]
+        same_school = [p for p in self.profiles if p.cod_min == profile.cod_min]
+        sessions = [s for s in self._famiglia if str(s.get("codMin", "")) == profile.cod_min] or self._famiglia
+        idx = next((n for n, p in enumerate(same_school) if p.unique_id == profile.unique_id), 0)
+        if not sessions:
+            raise ArgoConnectionError("L'API Famiglia non ha restituito sessioni")
+        return sessions[min(idx, len(sessions) - 1)]
+
+    async def async_confirm_notice(self, profile: Profile, notice_pk: str, attachment_pk: str | None) -> None:
+        """Conferma la presa visione di una comunicazione della bacheca.
+
+        Argo accetta la conferma solo dopo che almeno un allegato è stato scaricato,
+        come farebbe un genitore dall'app: lo scarichiamo (e lo scartiamo) prima.
+        """
+        profile = next((p for p in self.profiles if p.unique_id == profile.unique_id), profile)
+        if not profile.scheda_pk:
+            raise ArgoConnectionError("Identificativo della scheda alunno non disponibile")
+        try:
+            session = await self._famiglia_session(profile)
+        except ArgoAuthError:
+            self._famiglia = None
+            self._expires_at = 0
+            session = await self._famiglia_session(profile)
+        if attachment_pk:
+            link = await self._famiglia_api("famiglia/downloadallegatobacheca", {"uid": attachment_pk}, session)
+            url = link.get("url")
+            if url:
+                try:
+                    async with self._session.get(url, timeout=TIMEOUT) as r:
+                        await r.read()
+                except aiohttp.ClientError as err:
+                    raise ArgoConnectionError(f"Download allegato: {err}") from err
+        await self._famiglia_api(
+            "famiglia/presavisione", {"pkScheda": profile.scheda_pk, "prgMessaggio": notice_pk}, session
+        )

@@ -25,5 +25,10 @@ EVENT_NEW_NOTE = f"{DOMAIN}_nuova_nota"
 EVENT_NEW_ABSENCE = f"{DOMAIN}_nuova_assenza"
 EVENT_NEW_NOTICE = f"{DOMAIN}_nuova_comunicazione"
 EVENT_NEW_HOMEWORK = f"{DOMAIN}_nuovo_compito"
+EVENT_NEW_REMINDER = f"{DOMAIN}_nuovo_promemoria"
+
+SERVICE_ACK = "presa_visione"
+ATTR_NOTICE_ID = "comunicazione"
+ATTR_ENTRY_ID = "config_entry_id"
 
 STORAGE_VERSION = 1

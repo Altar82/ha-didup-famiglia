@@ -59,6 +59,9 @@ class _Resp:
     async def json(self, content_type=None):
         return self._js
 
+    async def read(self):
+        return self._body
+
 
 class _Jar:
     def clear(self):
@@ -298,3 +301,72 @@ def test_diagnostica_oscura_token_e_nomi():
     nomi = {e.id if isinstance(e, ast.Name) else e.value for e in voci.elts}
     assert {"CONF_REFRESH_TOKEN", "CONF_CALLBACK_URL", "CONF_PASSWORD", "CONF_USERNAME"} <= nomi
     assert {"docente", "desDocente", "autore", "nominativo", "nome", "cognome"} <= nomi
+
+
+class FakeFamiglia:
+    """API Famiglia simulata: la conferma passa solo dopo aver scaricato un allegato."""
+
+    def __init__(self):
+        self.cookie_jar = _Jar()
+        self.calls = []
+        self.scaricato = False
+
+    def post(self, url, data=None, headers=None, **kw):
+        import json as _j
+
+        body = _j.loads(data) if data else {}
+        self.calls.append((url.removeprefix(api.FAMIGLIA_BASE), body, dict(headers or {})))
+        if url.endswith("/login"):
+            return _Resp(200, js={"success": True, "data": [{"token": "FT", "codMin": "SC1"}]})
+        if url.endswith("downloadallegatobacheca"):
+            return _Resp(200, js={"success": True, "url": "https://files.example/a.pdf"})
+        if url.endswith("famiglia/presavisione"):
+            if not self.scaricato:
+                return _Resp(200, js={"success": False, "msg": "Per confermare scarica un allegato"})
+            return _Resp(200, js={"success": True})
+        return _Resp(404)
+
+    def get(self, url, **kw):
+        self.scaricato = True
+        return _Resp(200, b"pdf")
+
+
+def test_presa_visione_scarica_allegato_e_conferma():
+    fake = FakeFamiglia()
+    c = api.ArgoClient(fake, "1.30.2", refresh_token="RT")
+    c._access_token, c._expires_at = "AT", 9e18
+    p = api.Profile(token="T", cod_min="SC1", student_id="sc1_1", scheda_pk="SK9")
+    c.profiles = [p]
+    asyncio.run(c.async_confirm_notice(p, "777", "ALL1"))
+    paths = [x[0] for x in fake.calls]
+    assert paths == ["login", "famiglia/downloadallegatobacheca", "famiglia/presavisione"]
+    assert fake.calls[-1][1] == {"pkScheda": "SK9", "prgMessaggio": "777"}
+    assert fake.calls[-1][2]["x-auth-token"] == "FT"
+    # senza allegato Argo rifiuta e l'errore arriva chiaro
+    fake2 = FakeFamiglia()
+    c2 = api.ArgoClient(fake2, "1.30.2", refresh_token="RT")
+    c2._access_token, c2._expires_at, c2.profiles = "AT", 9e18, [p]
+    try:
+        asyncio.run(c2.async_confirm_notice(p, "778", None))
+    except api.ArgoConnectionError as err:
+        assert "allegato" in str(err)
+    else:
+        raise AssertionError("doveva fallire")
+
+
+def test_bacheca_id_allegati_e_promemoria():
+    dash = {
+        "bacheca": [
+            {"pk": "9", "data": "2026-11-10", "messaggio": "Uscita", "pvRichiesta": True,
+             "listaAllegati": [{"pk": "A1", "nomeFile": "c.pdf"}]},
+        ],
+        "promemoria": [
+            {"pk": "2", "datGiorno": "2026-11-20", "desAnnotazioni": "Verifica storia"},
+            {"pk": "1", "datGiorno": "2026-11-18", "desAnnotazioni": "Interrogazione"},
+        ],
+    }
+    d = parse.parse_dashboard(dash)
+    n = d.notices[0]
+    assert n.attachment_ids == ["A1"] and n.as_dict()["id"] == "9" and n.unread
+    assert [r.text for r in d.reminders] == ["Interrogazione", "Verifica storia"]
+    assert d.reminders[0].as_dict()["data"] == "2026-11-18"

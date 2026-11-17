@@ -8,9 +8,9 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription, SensorStateClass
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.util import dt as dt_util
+from homeassistant.util import dt as dt_util, slugify
 
 from . import DidupConfigEntry
 from .coordinator import Student
@@ -30,6 +30,11 @@ def _homework_on(st: Student, day) -> list[dict[str, Any]]:
 def _upcoming(st: Student, days: int) -> list[dict[str, Any]]:
     t = _today()
     return [h.as_dict() for h in st.data.homework if h.due and t < h.due <= t + timedelta(days=days)]
+
+
+def _reminders(st: Student, days: int) -> list[dict[str, Any]]:
+    t = _today()
+    return [r.as_dict() for r in st.data.reminders if r.date and t <= r.date <= t + timedelta(days=days)]
 
 
 def _last_grade(st: Student):
@@ -87,6 +92,12 @@ SENSORS: tuple[DidupSensorDescription, ...] = (
         attrs_fn=lambda st: {"compiti": _upcoming(st, 7)},
     ),
     DidupSensorDescription(
+        key="promemoria_settimana",
+        icon="mdi:calendar-alert",
+        value_fn=lambda st: len(_reminders(st, 7)),
+        attrs_fn=lambda st: {"promemoria": _reminders(st, 7)},
+    ),
+    DidupSensorDescription(
         key="assenze",
         icon="mdi:account-off",
         state_class=SensorStateClass.TOTAL,
@@ -136,6 +147,23 @@ async def async_setup_entry(
         DidupSensor(coordinator, uid, desc) for uid in coordinator.data for desc in SENSORS
     )
 
+    # una media per materia; le materie che compaiono dopo (nuovi voti) si aggiungono da sole
+    known: set[tuple[str, str]] = set()
+
+    @callback
+    def _add_subjects() -> None:
+        new = []
+        for uid, st in (coordinator.data or {}).items():
+            for subject in st.data.subject_averages:
+                if (uid, subject) not in known:
+                    known.add((uid, subject))
+                    new.append(DidupSubjectAverage(coordinator, uid, subject))
+        if new:
+            async_add_entities(new)
+
+    _add_subjects()
+    entry.async_on_unload(coordinator.async_add_listener(_add_subjects))
+
 
 class DidupSensor(DidupEntity, SensorEntity):
     entity_description: DidupSensorDescription
@@ -155,3 +183,32 @@ class DidupSensor(DidupEntity, SensorEntity):
         if not st or not self.entity_description.attrs_fn:
             return None
         return self.entity_description.attrs_fn(st)
+
+
+class DidupSubjectAverage(DidupEntity, SensorEntity):
+    _attr_icon = "mdi:school-outline"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator, uid: str, subject: str) -> None:
+        super().__init__(coordinator, uid, "media_materia")
+        self._subject = subject
+        self._attr_unique_id = f"{uid}_media_{slugify(subject)}"
+        self._attr_translation_placeholders = {"materia": subject.capitalize()}
+
+    @property
+    def native_value(self) -> float | None:
+        st = self.student
+        return st.data.subject_averages.get(self._subject) if st else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        st = self.student
+        if not st:
+            return None
+        voti = [g for g in st.data.grades if g.subject == self._subject and g.value is not None]
+        return {
+            "materia": self._subject,
+            "numero_voti": sum(1 for g in voti if g.counts_in_average),
+            "ultimi_voti": [g.as_dict() for g in voti[:MAX_ATTR_ITEMS]],
+        }
