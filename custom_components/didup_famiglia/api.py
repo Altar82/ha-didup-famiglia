@@ -297,8 +297,9 @@ class ArgoClient:
         return self._refresh_token
 
     async def async_close(self) -> None:
-        if not self._session.closed:
-            await self._session.close()
+        """Dimentica i token. La sessione è di Home Assistant: la chiude lui."""
+        self._access_token = None
+        self._session.cookie_jar.clear()
 
     # ------------------------------------------------------------- OAuth
     async def _get(self, url: str, **kw: Any) -> tuple[int, str | None, str, str]:
