@@ -9,12 +9,30 @@ from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
 from . import DidupConfigEntry
+from .const import CONF_CALLBACK_URL, CONF_REFRESH_TOKEN
 
 TO_REDACT = {
+    # credenziali e token (il refresh token SPID/CIE dà accesso all'account Argo)
     CONF_PASSWORD,
     CONF_USERNAME,
+    CONF_REFRESH_TOKEN,
+    CONF_CALLBACK_URL,
+    "access_token",
     "token",
     "x-auth-token",
+    # nomi di docenti, autori e alunni
+    "docente",
+    "desDocente",
+    "autore",
+    "alunno",
+    # testi liberi che possono contenere nomi o dati personali
+    "desNota",
+    "desMessaggio",
+    "desCommento",
+    "desAnnotazioni",
+    "nomeFile",
+    "desFile",
+    # anagrafica
     "nominativo",
     "nome",
     "cognome",

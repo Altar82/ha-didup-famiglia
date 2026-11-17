@@ -282,3 +282,19 @@ def test_parse_callback_variants():
         except (api.ArgoConnectionError, api.ArgoAuthError):
             continue
         raise AssertionError(bad)
+
+
+def test_diagnostica_oscura_token_e_nomi():
+    """Il file di diagnostica non deve contenere il refresh token né nomi di persone."""
+    import ast
+    import pathlib
+
+    base = pathlib.Path(__file__).resolve().parents[1] / "custom_components" / "didup_famiglia"
+    albero = ast.parse((base / "diagnostics.py").read_text())
+    voci = next(
+        n.value for n in albero.body
+        if isinstance(n, ast.Assign) and getattr(n.targets[0], "id", "") == "TO_REDACT"
+    )
+    nomi = {e.id if isinstance(e, ast.Name) else e.value for e in voci.elts}
+    assert {"CONF_REFRESH_TOKEN", "CONF_CALLBACK_URL", "CONF_PASSWORD", "CONF_USERNAME"} <= nomi
+    assert {"docente", "desDocente", "autore", "nominativo", "nome", "cognome"} <= nomi

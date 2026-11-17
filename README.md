@@ -23,11 +23,14 @@ della bacheca. Funziona con più figli sullo stesso account.
 
 ## Installazione
 
-### Con HACS (consigliata)
+### Dal Marketplace (consigliata)
 
-1. In Home Assistant apri **HACS** → menu ⋮ → **Repository personalizzati**.
-2. Incolla `https://github.com/Altar82/ha-didup-famiglia` e scegli la categoria **Integrazione**.
-3. Cerca **DidUP Famiglia**, installala e riavvia Home Assistant.
+1. In Home Assistant apri **Marketplace** e cerca **DidUP Famiglia**.
+2. Installala e riavvia Home Assistant.
+
+### Come repository personalizzato
+
+Se non la trovi nella ricerca, nel Marketplace apri il menu ⋮ → **Repository personalizzati**, incolla `https://github.com/Altar82/ha-didup-famiglia`, scegli la categoria **Integrazione** e poi installala come sopra.
 
 ### Manuale
 
@@ -152,7 +155,7 @@ automation:
 
 - **"Impossibile completare il login"**: probabilmente Argo ha cambiato il flusso di accesso. Apri una issue allegando
   il log con il debug attivo (vedi sotto).
-- **Sensori vuoti o valori strani**: scarica la **diagnostica** dalla pagina dell'integrazione e allegala a una issue.
+- **Sensori vuoti o valori strani**: scarica la **diagnostica** dalla pagina dell'integrazione e allegala a una issue. Token, password e nomi vengono oscurati, ma dai comunque un'occhiata al file prima di pubblicarlo.
   Nomi, codici fiscali, email e token sono oscurati, ma controllala comunque prima di pubblicarla.
 - **Log dettagliato**: dalla pagina dell'integrazione → **Abilita la registrazione di debug**, oppure:
 
