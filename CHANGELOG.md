@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+### Correzioni
+- Con la nuova API Argo dà all'alunno un identificativo diverso: le entità e il dispositivo esistenti vengono ora
+  spostati sul nuovo identificativo, così restano gli stessi (nomi, area, storico e automazioni) invece di comparire
+  doppi con quelli vecchi non disponibili. I doppioni creati dalla 0.3.2 vengono tolti da soli.
+
 ## 0.3.2
 
 ### Correzioni

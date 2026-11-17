@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+import logging
+
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv, issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.typing import ConfigType
 
 from .const import ATTR_ENTRY_ID, ATTR_NOTICE_ID, DOMAIN, SERVICE_ACK
 from .coordinator import DidupCoordinator, reauth_issue_id
+
+_LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR, Platform.BUTTON, Platform.BINARY_SENSOR]
 
@@ -61,10 +70,49 @@ async def async_setup_entry(hass: HomeAssistant, entry: DidupConfigEntry) -> boo
     coordinator = DidupCoordinator(hass, entry)
     entry.async_on_unload(coordinator.client.async_close)
     await coordinator.async_config_entry_first_refresh()
+    _migra_identificativi(hass, entry, coordinator)
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload))
     return True
+
+
+def _migra_identificativi(hass: HomeAssistant, entry: DidupConfigEntry, coordinator: DidupCoordinator) -> None:
+    """Riporta entità e dispositivi sull'id attuale dell'alunno.
+
+    Le due API di Argo (vecchia /appfamiglia e nuova Famiglia) danno all'alunno identificativi diversi:
+    senza questa migrazione, al cambio di API comparirebbero entità nuove e le vecchie resterebbero
+    non disponibili (con automazioni, aree e storico legati a quelle vecchie).
+    """
+    attuali = {uid: st.name for uid, st in (coordinator.data or {}).items()}
+    if not attuali:
+        return
+    dev_reg = dr.async_get(hass)
+    ent_reg = er.async_get(hass)
+    for device in dr.async_entries_for_config_entry(dev_reg, entry.entry_id):
+        vecchio = next((i[1] for i in device.identifiers if i[0] == DOMAIN), None)
+        if vecchio is None or vecchio in attuali:
+            continue
+        nuovo = next((u for u, n in attuali.items() if n and n == device.name), None)
+        if nuovo is None and len(attuali) == 1:
+            nuovo = next(iter(attuali))
+        if nuovo is None:
+            continue
+        # un dispositivo già creato con l'id nuovo (prima della migrazione) è un doppione: via
+        doppio = dev_reg.async_get_device(identifiers={(DOMAIN, nuovo)})
+        if doppio is not None and doppio.id != device.id:
+            for e in er.async_entries_for_device(ent_reg, doppio.id, include_disabled_entities=True):
+                ent_reg.async_remove(e.entity_id)
+            dev_reg.async_remove_device(doppio.id)
+        for e in er.async_entries_for_device(ent_reg, device.id, include_disabled_entities=True):
+            if not e.unique_id.startswith(f"{vecchio}_"):
+                continue
+            uid = nuovo + e.unique_id[len(vecchio):]
+            if (altro := ent_reg.async_get_entity_id(e.domain, DOMAIN, uid)) and altro != e.entity_id:
+                ent_reg.async_remove(altro)
+            ent_reg.async_update_entity(e.entity_id, new_unique_id=uid)
+        dev_reg.async_update_device(device.id, new_identifiers={(DOMAIN, nuovo)})
+        _LOGGER.info("Identificativo dell'alunno %s aggiornato dopo il cambio di API di Argo", device.name)
 
 
 async def _async_reload(hass: HomeAssistant, entry: DidupConfigEntry) -> None:
