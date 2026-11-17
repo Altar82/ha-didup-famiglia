@@ -40,6 +40,8 @@ USER_AGENT = "okhttp/4.12.0"
 
 MAX_HOPS = 12
 TIMEOUT = aiohttp.ClientTimeout(total=30)
+DOWNLOAD_TIMEOUT = aiohttp.ClientTimeout(total=120)
+MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
 
 
 class ArgoError(Exception):
@@ -646,30 +648,47 @@ class ArgoClient:
             raise ArgoConnectionError("L'API Famiglia non ha restituito sessioni")
         return sessions[min(idx, len(sessions) - 1)]
 
-    async def async_confirm_notice(self, profile: Profile, notice_pk: str, attachment_pk: str | None) -> None:
-        """Conferma la presa visione di una comunicazione della bacheca.
-
-        Argo accetta la conferma solo dopo che almeno un allegato è stato scaricato,
-        come farebbe un genitore dall'app: lo scarichiamo (e lo scartiamo) prima.
-        """
+    async def _session_for(self, profile: Profile) -> tuple[Profile, dict[str, Any]]:
         profile = next((p for p in self.profiles if p.unique_id == profile.unique_id), profile)
-        if not profile.scheda_pk:
-            raise ArgoConnectionError("Identificativo della scheda alunno non disponibile")
         try:
             session = await self._famiglia_session(profile)
         except ArgoAuthError:
             self._famiglia = None
             self._expires_at = 0
             session = await self._famiglia_session(profile)
+        return profile, session
+
+    async def _download(self, session: dict[str, Any], attachment_pk: str) -> bytes:
+        link = await self._famiglia_api("famiglia/downloadallegatobacheca", {"uid": attachment_pk}, session)
+        url = link.get("url")
+        if not url:
+            raise ArgoConnectionError("Argo non ha fornito il link dell'allegato")
+        try:
+            async with self._session.get(url, timeout=DOWNLOAD_TIMEOUT) as r:
+                if r.status != 200:
+                    raise ArgoConnectionError(f"Download allegato: HTTP {r.status}")
+                if (r.content_length or 0) > MAX_ATTACHMENT_BYTES:
+                    raise ArgoConnectionError("Allegato troppo grande")
+                return await r.read()
+        except aiohttp.ClientError as err:
+            raise ArgoConnectionError(f"Download allegato: {err}") from err
+
+    async def async_download_attachment(self, profile: Profile, attachment_pk: str) -> bytes:
+        """Scarica un allegato della bacheca (Argo dà un link temporaneo che va usato subito)."""
+        _, session = await self._session_for(profile)
+        return await self._download(session, attachment_pk)
+
+    async def async_confirm_notice(self, profile: Profile, notice_pk: str, attachment_pk: str | None) -> None:
+        """Conferma la presa visione di una comunicazione della bacheca.
+
+        Argo accetta la conferma solo dopo che almeno un allegato è stato scaricato,
+        come farebbe un genitore dall'app: lo scarichiamo (e lo scartiamo) prima.
+        """
+        profile, session = await self._session_for(profile)
+        if not profile.scheda_pk:
+            raise ArgoConnectionError("Identificativo della scheda alunno non disponibile")
         if attachment_pk:
-            link = await self._famiglia_api("famiglia/downloadallegatobacheca", {"uid": attachment_pk}, session)
-            url = link.get("url")
-            if url:
-                try:
-                    async with self._session.get(url, timeout=TIMEOUT) as r:
-                        await r.read()
-                except aiohttp.ClientError as err:
-                    raise ArgoConnectionError(f"Download allegato: {err}") from err
+            await self._download(session, attachment_pk)
         await self._famiglia_api(
             "famiglia/presavisione", {"pkScheda": profile.scheda_pk, "prgMessaggio": notice_pk}, session
         )

@@ -127,6 +127,11 @@
       "collegamento_argo": {
         "name": "Collegamento Argo"
       }
+    },
+    "todo": {
+      "circolari_da_confermare": {
+        "name": "Circolari da confermare"
+      }
     }
   },
   "services": {
@@ -137,6 +142,24 @@
         "comunicazione": {
           "name": "Comunicazione",
           "description": "L'id della comunicazione (attributo id del sensore Ultima comunicazione o dell'evento). Se vuoto, si confermano tutte quelle in attesa."
+        },
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Limita all'account indicato (se ne hai più di uno)."
+        }
+      }
+    },
+    "scarica_allegati": {
+      "name": "Scarica allegati",
+      "description": "Salva gli allegati delle comunicazioni nella cartella dei media (Media → Media locali → didup_famiglia). I file già scaricati vengono saltati.",
+      "fields": {
+        "comunicazione": {
+          "name": "Comunicazione",
+          "description": "L'id della comunicazione. Se vuoto, gli allegati di tutte le comunicazioni in bacheca."
+        },
+        "solo_da_confermare": {
+          "name": "Solo da confermare",
+          "description": "Senza id, scarica solo gli allegati delle comunicazioni che chiedono ancora la presa visione."
         },
         "config_entry_id": {
           "name": "Account",

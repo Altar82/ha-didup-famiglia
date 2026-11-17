@@ -18,12 +18,18 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.typing import ConfigType
 
-from .const import ATTR_ENTRY_ID, ATTR_NOTICE_ID, DOMAIN, SERVICE_ACK
+from .const import ATTR_ENTRY_ID, ATTR_NOTICE_ID, ATTR_ONLY_UNREAD, DOMAIN, SERVICE_ACK, SERVICE_DOWNLOAD
 from .coordinator import DidupCoordinator, reauth_issue_id
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR, Platform.BUTTON, Platform.BINARY_SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.CALENDAR,
+    Platform.BUTTON,
+    Platform.BINARY_SENSOR,
+    Platform.TODO,
+]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
@@ -60,6 +66,35 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             raise ServiceValidationError(f"Comunicazione {notice_id} non trovata")
         return {"confermate": done}
 
+    async def _scarica(call: ServiceCall) -> ServiceResponse:
+        entry_id = call.data.get(ATTR_ENTRY_ID)
+        notice_id = call.data.get(ATTR_NOTICE_ID)
+        entries = [
+            e
+            for e in hass.config_entries.async_entries(DOMAIN)
+            if e.state is ConfigEntryState.LOADED and (entry_id is None or e.entry_id == entry_id)
+        ]
+        if not entries:
+            raise ServiceValidationError("Nessuna integrazione didUP Famiglia attiva corrisponde alla richiesta")
+        saved: list[str] = []
+        for e in entries:
+            coordinator: DidupCoordinator = e.runtime_data
+            if notice_id is not None and not any(
+                n.pk == str(notice_id) for st in (coordinator.data or {}).values() for n in st.data.notices
+            ):
+                continue
+            saved += await coordinator.async_download_attachments(
+                notice_id=notice_id, only_unread=call.data.get(ATTR_ONLY_UNREAD, False)
+            )
+        return {"file": saved, "cartella": f"Media → Media locali → {DOMAIN}"}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DOWNLOAD,
+        _scarica,
+        schema=ACK_SCHEMA.extend({vol.Optional(ATTR_ONLY_UNREAD, default=False): cv.boolean}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.services.async_register(
         DOMAIN, SERVICE_ACK, _presa_visione, schema=ACK_SCHEMA, supports_response=SupportsResponse.OPTIONAL
     )

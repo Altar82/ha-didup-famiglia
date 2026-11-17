@@ -8,3 +8,17 @@ presa_visione:
       selector:
         config_entry:
           integration: didup_famiglia
+scarica_allegati:
+  fields:
+    comunicazione:
+      example: "123456"
+      selector:
+        text:
+    solo_da_confermare:
+      default: false
+      selector:
+        boolean:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: didup_famiglia

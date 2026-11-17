@@ -17,7 +17,8 @@ della bacheca. Funziona con più figli sullo stesso account.
 - **Due modi di accesso**: codice scuola + utente + password Argo, oppure **SPID / CIE**
 - **Calendario** dei compiti per data di consegna, con i promemoria della scuola
 - **Sensori** per voti, medie (anche per materia), compiti, promemoria, assenze, note e comunicazioni
-- **Presa visione** delle circolari da Home Assistant, con un pulsante o dall'azione di una notifica
+- **Presa visione** delle circolari da Home Assistant: spuntandole da una lista, con un pulsante o da una notifica
+- **Allegati** della bacheca salvati nei media di Home Assistant
 - **Eventi** per le automazioni quando arriva un voto, una nota, un'assenza, una comunicazione, un compito o un promemoria
 - Un **dispositivo per ogni figlio**, con nome, classe e scuola
 - **Diagnostica** scaricabile con i dati personali oscurati
@@ -91,7 +92,8 @@ Per ogni figlio viene creato un dispositivo con queste entità:
 | **Da giustificare** | numero | `eventi` |
 | **Note disciplinari** | numero | `ultime_note` |
 | **Ultima comunicazione** | titolo dell'ultima comunicazione pubblicata in bacheca | `id`, `data`, `categoria`, `autore`, `presa_visione_richiesta`, `presa_visione`, `allegati`, `url` |
-| **Comunicazioni da leggere** | circolari con presa visione mancante | `da_leggere`, `ultime_comunicazioni` |
+| **Comunicazioni da leggere** | circolari con presa visione mancante | `da_leggere` (tutte), `ultime_comunicazioni` |
+| Lista **Circolari da confermare** | le circolari da confermare: spuntane una per prendere visione; sotto le ultime confermate | |
 | Pulsante **Presa visione comunicazioni** | conferma tutte le circolari che chiedono la presa visione | |
 | **Collegamento Argo** (diagnostica) | acceso se l'ultimo aggiornamento è riuscito, resta disponibile anche quando Argo è giù | `ultimo_aggiornamento_riuscito`, `errore` |
 
@@ -99,6 +101,10 @@ Le annotazioni senza valore che Argo registra tra i voti (*Impreparato*, *Comuni
 sono nell'attributo `annotazioni` del sensore *Ultimo voto*.
 
 ## Presa visione
+
+La lista **Circolari da confermare** (la trovi in **Elenchi** nella barra laterale, o aggiungendo una scheda
+*Elenco cose da fare* alla dashboard) mostra le circolari che chiedono la presa visione, con data, autore e allegati:
+spunta quelle che vuoi confermare. Una presa visione su Argo non si può annullare, quindi togliere la spunta non fa nulla.
 
 Il pulsante **Presa visione comunicazioni** conferma in un colpo tutte le circolari che la richiedono.
 Per confermarne una sola c'è l'azione `didup_famiglia.presa_visione`, con l'`id` della comunicazione
@@ -112,6 +118,19 @@ data:
 
 Come nell'app, Argo registra la presa visione dopo che è stato aperto un allegato: l'integrazione lo scarica
 da sola (senza salvarlo) prima di confermare. La conferma vale come quella fatta dall'app del genitore.
+
+## Allegati
+
+L'azione `didup_famiglia.scarica_allegati` salva gli allegati nella cartella dei media di Home Assistant: li apri
+e li scarichi da **Media → Media locali → didup_famiglia**, divisi per alunno e per comunicazione. I file già
+scaricati vengono saltati e scaricare un allegato non conferma la presa visione.
+
+```yaml
+action: didup_famiglia.scarica_allegati
+data:
+  comunicazione: "123456"     # facoltativo: senza id, tutte le comunicazioni in bacheca
+  solo_da_confermare: false   # senza id, solo quelle ancora da confermare
+```
 
 ## Eventi per le automazioni
 
@@ -202,6 +221,23 @@ automation:
       - action: didup_famiglia.presa_visione
         data:
           comunicazione: "{{ trigger.event.data.action.removeprefix('DIDUP_PV_') }}"
+```
+
+#### Allegati salvati appena arriva una comunicazione
+
+```yaml
+automation:
+  - alias: "Scarica gli allegati della bacheca"
+    triggers:
+      - trigger: event
+        event_type: didup_famiglia_nuova_comunicazione
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.allegati | count > 0 }}"
+    actions:
+      - action: didup_famiglia.scarica_allegati
+        data:
+          comunicazione: "{{ trigger.event.data.id }}"
 ```
 
 #### Promemoria della circolare non confermata la sera

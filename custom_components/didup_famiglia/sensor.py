@@ -17,6 +17,7 @@ from .coordinator import Student
 from .entity import DidupEntity
 
 MAX_ATTR_ITEMS = 10
+MAX_UNREAD_ITEMS = 50
 
 
 def _today():
@@ -132,7 +133,8 @@ SENSORS: tuple[DidupSensorDescription, ...] = (
         icon="mdi:bulletin-board",
         value_fn=lambda st: sum(1 for n in st.data.notices if n.unread),
         attrs_fn=lambda st: {
-            "da_leggere": [n.as_dict() for n in st.data.notices if n.unread][:MAX_ATTR_ITEMS],
+            # tutte quelle da confermare (limite alto solo per non gonfiare il database)
+            "da_leggere": [n.as_dict() for n in st.data.notices if n.unread][:MAX_UNREAD_ITEMS],
             "ultime_comunicazioni": [n.as_dict() for n in st.data.notices[:MAX_ATTR_ITEMS]],
         },
     ),

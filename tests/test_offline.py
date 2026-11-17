@@ -46,6 +46,7 @@ class _Resp:
     def __init__(self, status, body="", location=None, url="", js=None):
         self.status, self._body, self.url, self._js = status, body, url, js
         self.headers = {"Location": location} if location else {}
+        self.content_length = len(body) if isinstance(body, (bytes, str)) else None
 
     async def __aenter__(self):
         return self

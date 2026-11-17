@@ -332,6 +332,8 @@ class Notice:
     acked: bool
     attachments: list[str] = field(default_factory=list)
     attachment_ids: list[str] = field(default_factory=list)
+    # (id, nome file) di ogni allegato scaricabile
+    files: list[tuple[str, str]] = field(default_factory=list)
 
     @property
     def unread(self) -> bool:
@@ -354,7 +356,7 @@ class Notice:
 def parse_notices(dash: dict[str, Any]) -> list[Notice]:
     out = []
     for i in _items(dash, "bacheca"):
-        att, att_ids = [], []
+        att, att_ids, files = [], [], []
         for a in i.get("listaAllegati") or []:
             if isinstance(a, dict):
                 name = _first(a, "nomeFile", "desFile", "descrizione", "descrizioneFile")
@@ -362,6 +364,7 @@ def parse_notices(dash: dict[str, Any]) -> list[Notice]:
                     att.append(str(name))
                 if a.get("pk"):
                     att_ids.append(str(a["pk"]))
+                    files.append((str(a["pk"]), str(name or a["pk"])))
         acked = _truthy(_first(i, "isPresaVisione", "presaVisione", default=False)) or bool(
             i.get("dataConfermaPresaVisione")
         )
@@ -377,6 +380,7 @@ def parse_notices(dash: dict[str, Any]) -> list[Notice]:
                 acked=acked,
                 attachments=att,
                 attachment_ids=att_ids,
+                files=files,
             )
         )
     out.sort(key=lambda n: n.date or date.min, reverse=True)

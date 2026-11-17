@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+### Novità
+- **Circolari da confermare**: nuova lista (in *Elenchi*) con le circolari che chiedono la presa visione, con data,
+  autore e allegati. Spuntandone una se ne conferma la presa visione; sotto restano le ultime confermate.
+- **Allegati**: nuova azione `didup_famiglia.scarica_allegati` che salva gli allegati nella cartella dei media
+  (*Media → Media locali → didup_famiglia*), divisi per alunno e comunicazione. Nel README c'è l'automazione per
+  scaricarli appena arriva una comunicazione.
+- **Comunicazioni da leggere**: l'attributo `da_leggere` ora elenca tutte le circolari da confermare, non solo le prime 10.
+
 ## 0.3.4
 
 ### Correzioni

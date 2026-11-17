@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -147,6 +149,50 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
             data={"entry_id": entry.entry_id},
         )
 
+    def media_folder(self) -> str:
+        """Cartella dei media di Home Assistant (visibile in Media → Media locali)."""
+        base = self.hass.config.media_dirs.get("local") or self.hass.config.path("media")
+        return os.path.join(base, DOMAIN)
+
+    async def async_download_attachments(
+        self, uid: str | None = None, notice_id: str | None = None, only_unread: bool = False
+    ) -> list[str]:
+        """Salva gli allegati nella cartella dei media; ritorna i percorsi relativi dei file nuovi."""
+        saved: list[str] = []
+        errors: list[str] = []
+        base = self.media_folder()
+        found = False
+        for st_uid, st in (self.data or {}).items():
+            if uid is not None and st_uid != uid:
+                continue
+            for n in st.data.notices:
+                if notice_id is not None and n.pk != str(notice_id):
+                    continue
+                if notice_id is None and only_unread and not n.unread:
+                    continue
+                found = True
+                folder = os.path.join(
+                    base, _safe(st.name), _safe(f"{n.date.isoformat() if n.date else 'senza data'} - {n.title}")[:120]
+                )
+                for att_pk, name in n.files:
+                    path = os.path.join(folder, _safe(name) or att_pk)
+                    if await self.hass.async_add_executor_job(os.path.exists, path):
+                        continue
+                    try:
+                        data = await self.client.async_download_attachment(st.profile, att_pk)
+                    except ArgoError as err:
+                        errors.append(f"{name}: {err}")
+                        continue
+                    await self.hass.async_add_executor_job(_write, path, data)
+                    saved.append(os.path.relpath(path, os.path.dirname(base)))
+        if notice_id is not None and not found:
+            raise HomeAssistantError(f"Comunicazione {notice_id} non trovata")
+        if errors and not saved:
+            raise HomeAssistantError("Download non riuscito: " + "; ".join(errors))
+        if errors:
+            _LOGGER.warning("Alcuni allegati non sono stati scaricati: %s", "; ".join(errors))
+        return saved
+
     async def async_confirm_notices(self, uid: str | None = None, notice_id: str | None = None) -> int:
         """Presa visione: di una comunicazione (notice_id) o di tutte quelle in attesa.
 
@@ -214,3 +260,17 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
                     changed = True
         if changed or first_run:
             await self._store.async_save(self._seen)
+
+
+def _safe(name: str) -> str:
+    """Nome di file/cartella senza caratteri problematici."""
+    name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", str(name)).strip(" .")
+    return re.sub(r"\s+\.", ".", re.sub(r"\s+", " ", name))
+
+
+def _write(path: str, data: bytes) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".part"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
