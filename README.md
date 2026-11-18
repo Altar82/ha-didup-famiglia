@@ -102,9 +102,17 @@ sono nell'attributo `annotazioni` del sensore *Ultimo voto*.
 
 ## Presa visione
 
-La lista **Circolari da confermare** (la trovi in **Elenchi** nella barra laterale, o aggiungendo una scheda
-*Elenco cose da fare* alla dashboard) mostra le circolari che chiedono la presa visione, con data, autore e allegati:
+La lista **Circolari da confermare** mostra le circolari che chiedono la presa visione, con data, autore e allegati:
 spunta quelle che vuoi confermare. Una presa visione su Argo non si può annullare, quindi togliere la spunta non fa nulla.
+
+Per aprirla:
+
+1. nella **barra laterale** di Home Assistant scegli **Elenchi** (icona con la lista e la spunta; sull'app del
+   telefono la barra si apre con ☰ in alto a sinistra);
+2. seleziona **Circolari da confermare** (con più figli ce n'è una per ognuno).
+
+In alternativa aggiungi alla dashboard una scheda **Elenco cose da fare** con l'entità `todo.<alunno>_circolari_da_confermare`.
+Aprendo l'entità da *Dispositivi* si vede solo il numero di circolari, non l'elenco da spuntare.
 
 Il pulsante **Presa visione comunicazioni** conferma in un colpo tutte le circolari che la richiedono.
 Per confermarne una sola c'è l'azione `didup_famiglia.presa_visione`, con l'`id` della comunicazione
