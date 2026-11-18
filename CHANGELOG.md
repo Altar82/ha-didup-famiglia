@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Correzioni
+- Download degli allegati (e quindi presa visione) rifiutato da Argo con *HTTP 403*: il link firmato veniva
+  ricodificato prima della richiesta e la firma non era più valida.
+
 ## 0.4.0
 
 ### Novità

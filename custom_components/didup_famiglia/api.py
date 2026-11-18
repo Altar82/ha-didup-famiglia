@@ -23,6 +23,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
 import aiohttp
+from yarl import URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -664,9 +665,11 @@ class ArgoClient:
         if not url:
             raise ArgoConnectionError("Argo non ha fornito il link dell'allegato")
         try:
-            async with self._session.get(url, timeout=DOWNLOAD_TIMEOUT) as r:
+            # link firmato: va usato così com'è, senza normalizzare la codifica (cambierebbe la firma)
+            async with self._session.get(URL(url, encoded=True), timeout=DOWNLOAD_TIMEOUT) as r:
                 if r.status != 200:
-                    raise ArgoConnectionError(f"Download allegato: HTTP {r.status}")
+                    _LOGGER.debug("Download allegato da %s: HTTP %s", urlparse(url).hostname, r.status)
+                    raise ArgoConnectionError(f"Download allegato: HTTP {r.status} ({urlparse(url).hostname})")
                 if (r.content_length or 0) > MAX_ATTACHMENT_BYTES:
                     raise ArgoConnectionError("Allegato troppo grande")
                 return await r.read()

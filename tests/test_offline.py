@@ -29,6 +29,15 @@ if "aiohttp" not in sys.modules:
         sys.modules["aiohttp"] = fake
 
 
+if "yarl" not in sys.modules:
+    try:
+        import yarl  # noqa: F401
+    except ImportError:
+        fake_yarl = types.ModuleType("yarl")
+        fake_yarl.URL = lambda u, encoded=False: u
+        sys.modules["yarl"] = fake_yarl
+
+
 def _load(name):
     spec = importlib.util.spec_from_file_location(name, BASE / f"{name}.py")
     mod = importlib.util.module_from_spec(spec)
