@@ -193,6 +193,32 @@ class DidupCoordinator(DataUpdateCoordinator[dict[str, Student]]):
             _LOGGER.warning("Alcuni allegati non sono stati scaricati: %s", "; ".join(errors))
         return saved
 
+    async def async_confirm_notes(self, uid: str | None = None, note_id: str | None = None) -> int:
+        """Presa visione delle note disciplinari: una (note_id) o tutte quelle non ancora viste."""
+        done = 0
+        errors: list[str] = []
+        for st_uid, st in (self.data or {}).items():
+            if uid is not None and st_uid != uid:
+                continue
+            for n in st.data.notes:
+                if note_id is not None:
+                    if n.pk != str(note_id):
+                        continue
+                elif n.seen:
+                    continue
+                try:
+                    await self.client.async_confirm_note(st.profile, n.pk)
+                    done += 1
+                except ArgoError as err:
+                    errors.append(f"nota del {n.date}: {err}")
+        if note_id is not None and not done and not errors:
+            raise HomeAssistantError(f"Nota {note_id} non trovata")
+        if done:
+            await self.async_request_refresh()
+        if errors:
+            raise HomeAssistantError("Presa visione non riuscita per " + "; ".join(errors))
+        return done
+
     async def async_confirm_notices(self, uid: str | None = None, notice_id: str | None = None) -> int:
         """Presa visione: di una comunicazione (notice_id) o di tutte quelle in attesa.
 

@@ -22,3 +22,13 @@ scarica_allegati:
       selector:
         config_entry:
           integration: didup_famiglia
+presa_visione_nota:
+  fields:
+    nota:
+      example: "123456"
+      selector:
+        text:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: didup_famiglia

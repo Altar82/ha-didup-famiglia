@@ -29,6 +29,8 @@ EVENT_NEW_REMINDER = f"{DOMAIN}_nuovo_promemoria"
 
 SERVICE_ACK = "presa_visione"
 SERVICE_DOWNLOAD = "scarica_allegati"
+SERVICE_ACK_NOTE = "presa_visione_nota"
+ATTR_NOTE_ID = "nota"
 ATTR_ONLY_UNREAD = "solo_da_confermare"
 ATTR_NOTICE_ID = "comunicazione"
 ATTR_ENTRY_ID = "config_entry_id"

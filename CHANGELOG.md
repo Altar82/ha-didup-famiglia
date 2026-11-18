@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+
+### Novità
+- **Presa visione delle note disciplinari**: nuova lista *Note da confermare* con le note non ancora viste; spuntandone
+  una se ne conferma la presa visione su Argo. C'è anche l'azione `didup_famiglia.presa_visione_nota`.
+- Le note hanno ora l'attributo `id`, anche nell'evento `didup_famiglia_nuova_nota`.
+
 ## 0.4.2
 
 ### Correzioni

@@ -337,6 +337,8 @@ class FakeFamiglia:
             return _Resp(200, js={"success": True, "data": [{"token": "FT", "codMin": "SC1"}]})
         if url.endswith("downloadallegatobacheca"):
             return _Resp(200, js={"success": True, "url": "https://files.example/a.pdf"})
+        if url.endswith("famiglia/presavisionenote"):
+            return _Resp(200, js={"success": True})
         if url.endswith("famiglia/presavisione"):
             if not self.scaricato:
                 return _Resp(200, js={"success": False, "msg": "Per confermare scarica un allegato"})
@@ -422,3 +424,13 @@ def test_note_disciplinari_nuova_api():
     ]}
     note = parse.parse_notes(dash)
     assert [(n.text, n.seen) for n in note] == [("Esce alle 12:40", True)]
+
+
+def test_presa_visione_nota():
+    fake = FakeFamiglia()
+    c = api.ArgoClient(fake, "1.30.2", refresh_token="RT")
+    c._access_token, c._expires_at = "AT", 9e18
+    p = api.Profile(token="T", cod_min="SC1", student_id="sc1_1", scheda_pk="SK9")
+    c.profiles = [p]
+    asyncio.run(c.async_confirm_note(p, "N1"))
+    assert fake.calls == [("famiglia/presavisionenote", {"pk": "N1"}, fake.calls[0][2])]

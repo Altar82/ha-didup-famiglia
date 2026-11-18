@@ -94,6 +94,7 @@ Per ogni figlio viene creato un dispositivo con queste entità:
 | **Ultima comunicazione** | titolo dell'ultima comunicazione pubblicata in bacheca | `id`, `data`, `categoria`, `autore`, `presa_visione_richiesta`, `presa_visione`, `allegati`, `url` |
 | **Comunicazioni da leggere** | circolari con presa visione mancante | `da_leggere` (tutte), `ultime_comunicazioni` |
 | Lista **Circolari da confermare** | le circolari da confermare: spuntane una per prendere visione; sotto le ultime confermate | |
+| Lista **Note da confermare** | le note disciplinari non ancora viste: spuntane una per confermare di averla letta | |
 | Pulsante **Presa visione comunicazioni** | conferma tutte le circolari che chiedono la presa visione | |
 | **Collegamento Argo** (diagnostica) | acceso se l'ultimo aggiornamento è riuscito, resta disponibile anche quando Argo è giù | `ultimo_aggiornamento_riuscito`, `errore` |
 
@@ -126,6 +127,13 @@ data:
 
 Come nell'app, Argo registra la presa visione dopo che è stato aperto un allegato: l'integrazione lo scarica
 da sola (senza salvarlo) prima di confermare. La conferma vale come quella fatta dall'app del genitore.
+
+### Note disciplinari
+
+Le note che il genitore non ha ancora visto compaiono nella lista **Note da confermare**: spuntandone una si conferma
+la presa visione, come dall'app. Lo stesso si fa con l'azione `didup_famiglia.presa_visione_nota` (con l'`id` della
+nota, che trovi nell'evento `didup_famiglia_nuova_nota` e negli attributi del sensore *Note disciplinari*; senza id
+le conferma tutte).
 
 ## Allegati
 

@@ -695,3 +695,8 @@ class ArgoClient:
         await self._famiglia_api(
             "famiglia/presavisione", {"pkScheda": profile.scheda_pk, "prgMessaggio": notice_pk}, session
         )
+
+    async def async_confirm_note(self, profile: Profile, note_pk: str) -> None:
+        """Conferma la presa visione di una nota disciplinare."""
+        _, session = await self._session_for(profile)
+        await self._famiglia_api("famiglia/presavisionenote", {"pk": note_pk}, session)

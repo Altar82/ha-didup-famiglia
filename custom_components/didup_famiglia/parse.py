@@ -295,6 +295,7 @@ class Note:
 
     def as_dict(self) -> dict[str, Any]:
         return {
+            "id": self.pk,
             "data": self.date.isoformat() if self.date else None,
             "nota": self.text,
             "categoria": self.category,

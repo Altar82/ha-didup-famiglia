@@ -18,7 +18,16 @@ from homeassistant.helpers import (
 )
 from homeassistant.helpers.typing import ConfigType
 
-from .const import ATTR_ENTRY_ID, ATTR_NOTICE_ID, ATTR_ONLY_UNREAD, DOMAIN, SERVICE_ACK, SERVICE_DOWNLOAD
+from .const import (
+    ATTR_ENTRY_ID,
+    ATTR_NOTE_ID,
+    ATTR_NOTICE_ID,
+    ATTR_ONLY_UNREAD,
+    DOMAIN,
+    SERVICE_ACK,
+    SERVICE_ACK_NOTE,
+    SERVICE_DOWNLOAD,
+)
 from .coordinator import DidupCoordinator, reauth_issue_id
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,6 +97,37 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         return {"file": saved, "cartella": f"Media → Media locali → {DOMAIN}"}
 
+    async def _presa_visione_nota(call: ServiceCall) -> ServiceResponse:
+        entry_id = call.data.get(ATTR_ENTRY_ID)
+        note_id = call.data.get(ATTR_NOTE_ID)
+        entries = [
+            e
+            for e in hass.config_entries.async_entries(DOMAIN)
+            if e.state is ConfigEntryState.LOADED and (entry_id is None or e.entry_id == entry_id)
+        ]
+        if not entries:
+            raise ServiceValidationError("Nessuna integrazione didUP Famiglia attiva corrisponde alla richiesta")
+        done = 0
+        for e in entries:
+            coordinator: DidupCoordinator = e.runtime_data
+            if note_id is not None and not any(
+                n.pk == str(note_id) for st in (coordinator.data or {}).values() for n in st.data.notes
+            ):
+                continue
+            done += await coordinator.async_confirm_notes(note_id=note_id)
+        if note_id is not None and not done:
+            raise ServiceValidationError(f"Nota {note_id} non trovata")
+        return {"confermate": done}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ACK_NOTE,
+        _presa_visione_nota,
+        schema=vol.Schema(
+            {vol.Optional(ATTR_NOTE_ID): vol.All(cv.string, vol.Length(min=1)), vol.Optional(ATTR_ENTRY_ID): cv.string}
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.services.async_register(
         DOMAIN,
         SERVICE_DOWNLOAD,

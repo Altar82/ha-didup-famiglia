@@ -131,6 +131,9 @@
     "todo": {
       "circolari_da_confermare": {
         "name": "Circolari da confermare"
+      },
+      "note_da_confermare": {
+        "name": "Note da confermare"
       }
     }
   },
@@ -160,6 +163,20 @@
         "solo_da_confermare": {
           "name": "Solo da confermare",
           "description": "Senza id, scarica solo gli allegati delle comunicazioni che chiedono ancora la presa visione."
+        },
+        "config_entry_id": {
+          "name": "Account",
+          "description": "Limita all'account indicato (se ne hai più di uno)."
+        }
+      }
+    },
+    "presa_visione_nota": {
+      "name": "Presa visione nota",
+      "description": "Conferma di aver visto una nota disciplinare, o tutte quelle non ancora viste.",
+      "fields": {
+        "nota": {
+          "name": "Nota",
+          "description": "L'id della nota (attributo id della nota o dell'evento). Se vuoto, si confermano tutte quelle non ancora viste."
         },
         "config_entry_id": {
           "name": "Account",

@@ -17,7 +17,10 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: DidupConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data
-    async_add_entities(DidupNoticeList(coordinator, uid) for uid in coordinator.data)
+    async_add_entities(
+        [DidupNoticeList(coordinator, uid) for uid in coordinator.data]
+        + [DidupNoteList(coordinator, uid) for uid in coordinator.data]
+    )
 
 
 class DidupNoticeList(DidupEntity, TodoListEntity):
@@ -68,3 +71,48 @@ class DidupNoticeList(DidupEntity, TodoListEntity):
             return
         if not notice.acked:
             await self.coordinator.async_confirm_notices(uid=self._uid, notice_id=notice.pk)
+
+
+class DidupNoteList(DidupEntity, TodoListEntity):
+    """Note disciplinari: spuntane una per confermare di averla vista."""
+
+    _attr_icon = "mdi:alert-octagon-outline"
+    _attr_supported_features = TodoListEntityFeature.UPDATE_TODO_ITEM
+
+    def __init__(self, coordinator, uid: str) -> None:
+        super().__init__(coordinator, uid, "note_da_confermare")
+
+    @property
+    def todo_items(self) -> list[TodoItem] | None:
+        st = self.student
+        if not st:
+            return None
+        items: list[TodoItem] = []
+        done = 0
+        for n in st.data.notes:
+            if n.seen:
+                if done >= MAX_DONE:
+                    continue
+                done += 1
+            items.append(
+                TodoItem(
+                    uid=n.pk,
+                    summary=(n.text or "Nota disciplinare")[:200],
+                    status=TodoItemStatus.COMPLETED if n.seen else TodoItemStatus.NEEDS_ACTION,
+                    due=n.date,
+                    description=" · ".join(x for x in (n.teacher, n.text if len(n.text) > 200 else None) if x) or None,
+                )
+            )
+        return items
+
+    async def async_update_todo_item(self, item: TodoItem) -> None:
+        st = self.student
+        note = next((n for n in (st.data.notes if st else []) if n.pk == item.uid), None)
+        if note is None:
+            raise HomeAssistantError("Nota non trovata")
+        if item.status != TodoItemStatus.COMPLETED:
+            if note.seen:
+                raise HomeAssistantError("La presa visione su Argo non si può annullare")
+            return
+        if not note.seen:
+            await self.coordinator.async_confirm_notes(uid=self._uid, note_id=note.pk)
