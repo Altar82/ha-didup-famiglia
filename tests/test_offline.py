@@ -317,6 +317,7 @@ def test_diagnostica_oscura_token_e_nomi():
     nomi = {e.id if isinstance(e, ast.Name) else e.value for e in voci.elts}
     assert {"CONF_REFRESH_TOKEN", "CONF_CALLBACK_URL", "CONF_PASSWORD", "CONF_USERNAME"} <= nomi
     assert {"docente", "desDocente", "autore", "nominativo", "nome", "cognome"} <= nomi
+    assert {"desDescrizione", "nota", "commentoGiustificazione"} <= nomi
 
 
 class FakeFamiglia:
@@ -412,3 +413,12 @@ def test_api_famiglia_e_ripiego_su_quella_vecchia():
         base = api.API_BASE if giu else api.FAMIGLIA_BASE
         assert api_calls[-1] == base + "dashboard/dashboard"
     assert ids[0] == ids[1] == "SC1_42"
+
+
+def test_note_disciplinari_nuova_api():
+    dash = {"noteDisciplinari": [
+        {"pk": "n1", "desDescrizione": "Esce alle 12:40", "datNota": "2026-10-12", "isVisualizzata": True},
+        {"pk": "n2", "desDescrizione": "annullata", "datNota": "2026-10-13", "isAnnullata": True},
+    ]}
+    note = parse.parse_notes(dash)
+    assert [(n.text, n.seen) for n in note] == [("Esce alle 12:40", True)]

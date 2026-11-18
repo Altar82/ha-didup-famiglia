@@ -306,14 +306,16 @@ class Note:
 def parse_notes(dash: dict[str, Any]) -> list[Note]:
     out = []
     for i in _items(dash, "noteDisciplinari", "note"):
+        if _truthy(_first(i, "isAnnullata", "flgAnnullata", default=False)):
+            continue
         out.append(
             Note(
                 pk=str(_first(i, "pk", default=id(i))),
                 date=_date(_first(i, "datNota", "data", "datEvento")),
-                text=str(_first(i, "desNota", "nota", "descrizione", default="")).strip(),
+                text=str(_first(i, "desNota", "desDescrizione", "nota", "descrizione", default="")).strip(),
                 category=_first(i, "categoria", "desTipologia"),
                 teacher=_teacher(i),
-                seen=_truthy(_first(i, "flgVisto", "isVisto", "visto", default=False)),
+                seen=_truthy(_first(i, "flgVisto", "isVisto", "visto", "isVisualizzata", default=False)),
             )
         )
     out.sort(key=lambda n: n.date or date.min, reverse=True)

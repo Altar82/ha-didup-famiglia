@@ -32,6 +32,12 @@ TO_REDACT = {
     "desAnnotazioni",
     "nomeFile",
     "desFile",
+    "desDescrizione",
+    "nota",
+    "descrizione",
+    "commentoGiustificazione",
+    "desNome",
+    "desCognome",
     # anagrafica
     "nominativo",
     "nome",

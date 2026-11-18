@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+### Correzioni
+- **Note disciplinari**: con la nuova API il testo della nota restava vuoto; ora si vede, e le note annullate non
+  vengono più contate.
+- **Diagnostica**: oscurati anche il testo delle note, le descrizioni e i motivi delle giustificazioni.
+
 ## 0.4.1
 
 ### Correzioni
